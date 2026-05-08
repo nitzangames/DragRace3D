@@ -1,6 +1,6 @@
 import { buildClassicEnv, updateTreeFromGameData } from './env-builder.js';
 import { buildCar } from './car-models.js';
-import { LANE_OFFSET_X, PLAYER_CAR_IDX, OPPONENT_CAR_IDX, NUM_CARS } from './constants.js';
+import { NUM_CARS } from './constants.js';
 
 /** Build the race scene (classic strip + 2 cars). Returns { scene, cars, env }. */
 export function buildRaceScene(balance) {
