@@ -169,7 +169,7 @@ export function buildTachSVG(parentEl, redline, greenBand) {
   let frame = 0;
   const IDLE_THRESHOLD = 1500;
   return {
-    update(rpm, gear) {
+    update(rpm, gear, slip) {
       frame++;
       let displayRpm = rpm;
       if (rpm < IDLE_THRESHOLD) {
@@ -178,6 +178,10 @@ export function buildTachSVG(parentEl, redline, greenBand) {
       } else if (rpm >= redline) {
         // Limiter bounce: ~9Hz oscillation, larger amplitude, more chaotic
         displayRpm += Math.sin(frame * 0.92) * 160 + (Math.random() - 0.5) * 120;
+      } else if (slip) {
+        // Wheelspin stutter: engine flares as wheels lose traction.
+        // Higher-frequency than limiter bounce, more chaotic.
+        displayRpm += Math.sin(frame * 1.3) * 130 + (Math.random() - 0.5) * 180;
       }
       setNeedle(displayRpm);
     },
