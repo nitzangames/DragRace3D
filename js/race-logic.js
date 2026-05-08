@@ -7,7 +7,7 @@ import { blowThresholdReached } from './shift-scoring.js';
 
 const INTRO_DURATION_S = 2.0;
 const STAGING_HOLD_DURATION_S = 0.5; // player must hold both for 0.5s before tree
-const G_MS2 = G_MS2;                  // gravitational acceleration (m/s^2), used for normal-force calcs
+const G_MS2 = 9.81;                  // gravitational acceleration (m/s^2), used for normal-force calcs
 const LIMITER_OVERSHOOT = 1.02;      // hard cap sits 2% above redline so cars can spend a brief moment at the limiter without instantly blowing (the BLOW_THRESHOLD_S timer governs blow-up)
 
 /**
