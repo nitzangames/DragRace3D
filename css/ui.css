@@ -207,10 +207,10 @@ html, body {
 }
 .tier-btn .t-name { font-weight: 700; }
 .tier-btn .t-price { color: #ffd14a; margin-top: 4px; font-size: 13px; }
-.tier-btn.installed { color: #fff; border-color: #2aa050; background: #1a3520; }
-.tier-btn.owned    { color: #ddd; border-color: #2aa050; opacity: 0.5; }
-.tier-btn.buyable  { color: #fff; border-color: #ff8a5a; cursor: pointer; }
-.tier-btn.buyable:active { background: #2a2d33; }
+.tier-btn.installed { color: #fff; border-color: #4a9fe0; background: #18283a; }
+.tier-btn.owned    { color: #ddd; border-color: #4a9fe0; opacity: 0.5; }
+.tier-btn.buyable  { color: #fff; border-color: #2aa050; background: #1a3520; cursor: pointer; }
+.tier-btn.buyable:active { background: #2a4530; }
 .tier-btn.locked   { opacity: 0.4; }
 
 .tune-row { margin: 14px 0; }
