@@ -4,6 +4,11 @@ import { NUM_CARS, PLAYER_CAR_IDX, LANE_OFFSET_X } from './constants.js';
  * Allocate the single mutable gameData object. Pre-allocates all per-car
  * TypedArrays and the input-flag/staging-state fields. Never re-allocates
  * during gameplay.
+ *
+ * The `balance` parameter isn't read at alloc time today (NUM_CARS comes
+ * from constants), but call sites already pass it because Plan 2 / Plan 3
+ * pool sizes (smoke, sparks, ghost-replay buffers) will depend on balance
+ * data. Keeping the signature stable now avoids touching every caller later.
  */
 export function allocGameData(balance) {
   const N = NUM_CARS;
@@ -37,7 +42,7 @@ export function allocGameData(balance) {
     racingStartS: 0,     // when the player launched
     winnerCarIdx: -1,
 
-    // ---- per-frame scratch (filled by render, NOT mutated by logic) ----
+    // ---- per-frame logic output (set by race-logic, read by renderer for VFX) ----
     slip: new Uint8Array(N),  // 1 if wheelspin frame (for VFX)
 
     // ---- meta ----
