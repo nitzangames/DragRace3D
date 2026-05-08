@@ -1,6 +1,6 @@
 {
   "name": "drag-race-3d",
-  "version": "0.2.2",
+  "version": "0.2.4",
   "type": "module",
   "private": true,
   "scripts": {

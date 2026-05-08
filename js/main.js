@@ -20,6 +20,9 @@ let scene, cars, env, tachUpdater;
 let acc = 0; let lastT = performance.now();
 let started = false;
 
+// Debug handle (used by tests-visual probes; harmless in prod)
+if (typeof window !== 'undefined') window.__dr3d_gd = gameData;
+
 function show(id) {
   document.querySelectorAll('#ui .screen').forEach(s => s.classList.add('hidden'));
   const el = document.getElementById(id);
@@ -38,7 +41,12 @@ function startRace() {
   tachUpdater = buildTachSVG(tachContainer, balance.cars[0].redlineRpm, GREEN_BAND_RPM);
 }
 
-document.getElementById('btn-start').addEventListener('click', () => startRace());
+document.getElementById('btn-start').addEventListener('click', e => {
+  // Blur so Spacebar doesn't reactivate the button (which would re-trigger
+  // startRace → resetRace every frame Space is held).
+  e.currentTarget.blur();
+  startRace();
+});
 document.getElementById('version-text').textContent = VERSION;
 
 // Initial input wiring needs gameData reference; must be after gameData allocated.

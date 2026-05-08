@@ -61,12 +61,19 @@ function tickStaging(gd, balance, dt) {
   }
 }
 
+// RPM rates while staging (no engine load — pure throttle-vs-pedal-off response).
+// Cap is the redline limiter, not launchRpmMax. The "ideal launch RPM" is
+// implicit in the bell-curve torque: revving too high reduces launch torque
+// and increases wheelspin via the grip cap in stepCar.
+const STAGING_REV_UP_RATE   = 8000;  // RPM/s when gas held
+const STAGING_REV_DOWN_RATE = 6000;  // RPM/s when gas released
 function revToward(gd, balance, i, dt) {
   const car = balance.cars[i];
+  const limiter = car.redlineRpm * LIMITER_OVERSHOOT;
   if (gd.inputGas[i]) {
-    gd.rpm[i] = clamp(gd.rpm[i] + 5000 * dt, car.idleRpm, car.launchRpmMax);
+    gd.rpm[i] = clamp(gd.rpm[i] + STAGING_REV_UP_RATE * dt, car.idleRpm, limiter);
   } else {
-    gd.rpm[i] = clamp(gd.rpm[i] - 4000 * dt, car.idleRpm, car.launchRpmMax);
+    gd.rpm[i] = clamp(gd.rpm[i] - STAGING_REV_DOWN_RATE * dt, car.idleRpm, limiter);
   }
 }
 
