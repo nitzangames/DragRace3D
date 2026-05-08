@@ -82,4 +82,7 @@ export function resetRace(gameData, balance, seed) {
   gameData.racingStartS = 0;
   gameData.winnerCarIdx = -1;
   gameData.seed = seed;
+  // Clear cached AI plan so each race samples a fresh one against the
+  // current race-balance (handicap scales down with classWins).
+  gameData._aiPlan = null;
 }

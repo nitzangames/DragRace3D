@@ -277,6 +277,9 @@ document.getElementById('btn-cardetail-set-current').addEventListener('click', o
 async function onNextRace() {
   quickRaceMode = false;  // career race
   raceBalance = buildRaceBalance(careerState, Date.now() | 0);
+  // Expose for in-browser debugging — handy to verify AI handicap on the fly.
+  if (typeof window !== 'undefined') window.__dr3d_raceBalance = raceBalance;
+  console.log(`[dr3d] race start | classWins=${careerState.classWins} | AI rtMean=${raceBalance.ai.rtMean.toFixed(2)}s | AI shiftSlack=${raceBalance.ai.shiftBandSlackRpm.toFixed(0)}rpm`);
   startRace();
 }
 
