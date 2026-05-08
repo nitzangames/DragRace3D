@@ -33,3 +33,52 @@ canvas#game-canvas {
 }
 .btn-primary:active { background: #b04020; }
 .version { position: absolute; bottom: 24px; left: 0; right: 0; text-align: center; font-size: 14px; opacity: 0.5; }
+
+.hud-overlay {
+  background: transparent !important;
+  pointer-events: none;
+}
+.hud-overlay > * { pointer-events: auto; }
+
+.hud-chip {
+  position: absolute;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 600;
+  background: rgba(0,0,0,0.45);
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+.hud-chip.top-left { top: 24px; left: 24px; }
+.hud-chip.top-right { top: 24px; right: 24px; }
+
+#tach-container {
+  position: absolute;
+  top: 12%;
+  left: 50%; transform: translateX(-50%);
+  width: 65%; aspect-ratio: 1/1;
+  pointer-events: none;
+}
+
+.race-button {
+  position: absolute; bottom: 0;
+  height: 220px; width: 50%;
+  border: none; cursor: pointer; touch-action: manipulation;
+  font-family: system-ui; font-weight: 800; letter-spacing: 4px;
+  font-size: 64px; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.shift-button {
+  left: 0;
+  background: linear-gradient(180deg, #3a4858, #1c2530);
+  border-top: 4px solid #5a6878;
+  border-right: 4px solid #5a6878;
+}
+.shift-button.held { background: #5a7090; }
+.gas-button {
+  right: 0;
+  background: linear-gradient(180deg, #d65a3a, #7a2010);
+  border-top: 4px solid #ff8a5a;
+  border-left: 4px solid #ff8a5a;
+}
+.gas-button.held { background: #ff5a3a; }
