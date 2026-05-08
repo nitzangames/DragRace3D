@@ -1,9 +1,7 @@
 import {
-  FIXED_DT, BLOW_THRESHOLD_S, GREEN_BAND_RPM,
   TREE_AMBER_INTERVAL_S, TREE_AMBER_COUNT,
-  FINISH_LINE_M, NUM_CARS, PLAYER_CAR_IDX,
+  NUM_CARS, PLAYER_CAR_IDX,
 } from './constants.js';
-import { shiftQuality, blowThresholdReached } from './shift-scoring.js';
 
 const INTRO_DURATION_S = 2.0;
 const STAGING_HOLD_DURATION_S = 0.5; // player must hold both for 0.5s before tree
