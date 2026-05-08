@@ -97,7 +97,12 @@ function tickTree(gd, balance, dt) {
       return;
     }
   }
-  if (ambers >= TREE_AMBER_COUNT && gd.treeGreenAtS === 0) {
+  // Green light fires AFTER another full interval past the 3rd amber, so
+  // the cadence reads amber-amber-amber-(beat)-GREEN instead of all four
+  // events bunching together. Pattern: amber 1 at t=interval, amber 2 at
+  // 2*interval, amber 3 at 3*interval, GREEN at 4*interval.
+  const greenAtT = (TREE_AMBER_COUNT + 1) * TREE_AMBER_INTERVAL_S;
+  if (t >= greenAtT && gd.treeGreenAtS === 0) {
     gd.treeGreenAtS = gd.raceTimeS;
     gd.raceState = 'launching';
   }
