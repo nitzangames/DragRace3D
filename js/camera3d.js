@@ -16,9 +16,11 @@ export function createChaseCamera(canvas) {
 export function updateChaseCamera(cam, gameData) {
   const T = window.THREE;
   const playerZ = gameData.posZ[PLAYER_CAR_IDX];
-  // raised chase: 6.5m behind, 2.4m up, look ~18m ahead at chest height
-  cam.position.set(LANE_OFFSET_X, 2.4, playerZ + 6.5);
+  // Raised chase: camera sits a bit RIGHT of the player lane and looks
+  // toward a point LEFT of center, so both cars fit in frame: player on the
+  // right side of view, opponent (in the -X lane) on the left.
+  cam.position.set(LANE_OFFSET_X + 0.5, 2.4, playerZ + 6.5);
   if (!cam.userData._lookAt) cam.userData._lookAt = new T.Vector3();
-  cam.userData._lookAt.set(LANE_OFFSET_X * 0.8, 1.0, playerZ - 18);
+  cam.userData._lookAt.set(-0.8, 1.0, playerZ - 18);
   cam.lookAt(cam.userData._lookAt);
 }

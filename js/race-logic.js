@@ -197,11 +197,16 @@ function tickRacing(gd, balance, dt) {
       gd.finishTimeS[i] = gd.raceTimeS - gd.treeGreenAtS;
     }
   }
-  let allDone = true;
+  // End the race the moment a car crosses the finish line (no need to wait
+  // for the opponent — first to cross wins). Also end if both cars are
+  // blown.
+  let anyFinished = false;
+  let allBlown = true;
   for (let i = 0; i < NUM_CARS; i++) {
-    if (!gd.finished[i] && !gd.blown[i]) { allDone = false; break; }
+    if (gd.finished[i]) anyFinished = true;
+    if (!gd.blown[i]) allBlown = false;
   }
-  if (allDone) {
+  if (anyFinished || allBlown) {
     gd.raceState = 'finished';
     gd.winnerCarIdx = pickWinner(gd);
   }
