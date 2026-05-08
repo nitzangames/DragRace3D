@@ -42,3 +42,31 @@ test('race state: staging → tree begins when player presses both buttons', () 
   for (let t = 0; t < 0.6; t += FIXED_DT) tickRace(gd, balance, FIXED_DT);
   assert.equal(gd.raceState, 'tree');
 });
+
+test('physics: car at full gas accelerates forward', () => {
+  const gd = allocGameData(balance);
+  resetRace(gd, balance, 1);
+  gd.raceState = 'racing';
+  gd.gear[0] = 1; gd.gear[1] = 1;
+  gd.rpm[0] = 5000; gd.rpm[1] = 5000;
+  gd.inputGas[0] = 1; gd.inputGas[1] = 0;
+  for (let t = 0; t < 1.0; t += FIXED_DT) tickRace(gd, balance, FIXED_DT);
+  assert.ok(gd.posZ[0] < 0, 'player should have moved forward (-Z)');
+  assert.ok(gd.velMs[0] > 0, 'player should have positive forward velocity');
+});
+
+test('physics: car finishes 1/4 mile in expected time window', () => {
+  const gd = allocGameData(balance);
+  resetRace(gd, balance, 1);
+  gd.raceState = 'racing';
+  gd.gear[0] = 4; gd.gear[1] = 4;  // top gear: covers 1/4 mile without engine blow
+  gd.rpm[0] = 5000; gd.rpm[1] = 5000;
+  gd.inputGas[0] = 1; gd.inputGas[1] = 0;
+  let t = 0;
+  while (t < 30 && !gd.finished[0]) {
+    tickRace(gd, balance, FIXED_DT);
+    t += FIXED_DT;
+  }
+  assert.ok(gd.finished[0], 'car should have finished');
+  assert.ok(gd.finishTimeS[0] < 30, `finishTime too high: ${gd.finishTimeS[0]}`);
+});

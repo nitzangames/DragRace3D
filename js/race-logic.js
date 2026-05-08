@@ -1,7 +1,9 @@
 import {
   TREE_AMBER_INTERVAL_S, TREE_AMBER_COUNT,
   NUM_CARS, PLAYER_CAR_IDX,
+  BLOW_THRESHOLD_S, FINISH_LINE_M,
 } from './constants.js';
+import { blowThresholdReached } from './shift-scoring.js';
 
 const INTRO_DURATION_S = 2.0;
 const STAGING_HOLD_DURATION_S = 0.5; // player must hold both for 0.5s before tree
@@ -100,7 +102,71 @@ function tickLaunching(gd, balance, dt) {
 }
 
 function tickRacing(gd, balance, dt) {
-  // Stub for now — Task 5 fills in physics + shifts + finish detection.
+  for (let i = 0; i < NUM_CARS; i++) {
+    if (gd.finished[i] || gd.blown[i]) continue;
+    stepCar(gd, balance, i, dt);
+  }
+  for (let i = 0; i < NUM_CARS; i++) {
+    if (!gd.finished[i] && -gd.posZ[i] >= FINISH_LINE_M) {
+      gd.finished[i] = 1;
+      gd.finishTimeS[i] = gd.raceTimeS - gd.racingStartS;
+    }
+  }
+  let allDone = true;
+  for (let i = 0; i < NUM_CARS; i++) {
+    if (!gd.finished[i] && !gd.blown[i]) { allDone = false; break; }
+  }
+  if (allDone) {
+    gd.raceState = 'finished';
+    gd.winnerCarIdx = pickWinner(gd);
+  }
+}
+
+function pickWinner(gd) {
+  let bestI = 0, bestT = Infinity;
+  for (let i = 0; i < NUM_CARS; i++) {
+    const t = gd.finished[i] ? gd.finishTimeS[i] : Infinity;
+    if (t < bestT) { bestT = t; bestI = i; }
+  }
+  return bestT === Infinity ? -1 : bestI;
+}
+
+function stepCar(gd, balance, i, dt) {
+  const car = balance.cars[i];
+  const wheelRps = gd.velMs[i] / (2 * Math.PI * car.wheelRadius);
+  const wheelTargetRpm = wheelRps * 60 * car.gearRatios[gd.gear[i] - 1] * car.finalDrive;
+  // Gas pedal holds the engine in the power band; wheel speed may demand higher RPM (no drop below power band when gas is on)
+  const gasTarget = gd.inputGas[i] ? car.torquePeakRpm : car.idleRpm;
+  const targetRpm = Math.max(wheelTargetRpm, gasTarget);
+  gd.rpm[i] += (targetRpm - gd.rpm[i]) * Math.min(1, car.engineResponse * dt);
+  if (gd.rpm[i] < car.idleRpm) gd.rpm[i] = car.idleRpm;
+  const limiterRpm = car.redlineRpm * 1.02;
+  if (gd.rpm[i] > limiterRpm) gd.rpm[i] = limiterRpm;
+  if (gd.rpm[i] >= car.redlineRpm) gd.timeAtLimiterS[i] += dt;
+  else gd.timeAtLimiterS[i] = 0;
+  if (blowThresholdReached(gd.timeAtLimiterS[i], BLOW_THRESHOLD_S)) {
+    gd.blown[i] = 1;
+    return;
+  }
+  const torque = torqueAt(car, gd.rpm[i]);
+  let force = torque * car.gearRatios[gd.gear[i] - 1] * car.finalDrive / car.wheelRadius;
+  const fMax = car.grip * car.mass * 9.81;
+  if (force > fMax) {
+    gd.slip[i] = 1;
+    force = fMax;
+  } else {
+    gd.slip[i] = 0;
+  }
+  force -= car.dragCoef * gd.velMs[i] * gd.velMs[i];
+  force -= car.rollingResistance * car.mass * 9.81;
+  gd.velMs[i] += (force / car.mass) * dt;
+  if (gd.velMs[i] < 0) gd.velMs[i] = 0;
+  gd.posZ[i] -= gd.velMs[i] * dt;  // -Z is forward
+}
+
+function torqueAt(car, rpm) {
+  const dx = (rpm - car.torquePeakRpm) / car.torqueWidth;
+  return car.torquePeakNm * Math.exp(-dx * dx);
 }
 
 function tickCoast(gd, balance, dt) {
