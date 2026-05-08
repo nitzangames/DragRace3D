@@ -69,11 +69,18 @@ export function initEffects(scene) {
   scene.add(smokeMesh);
 
   // ---- Tire marks: thin dark plane lying flat on the strip ----
-  const marksGeo = new T.PlaneGeometry(0.18, 0.55);
+  // polygonOffset pushes the marks slightly toward the camera in depth so
+  // they don't z-fight with the asphalt at y≈0. Higher opacity + pure black
+  // so they read clearly on the dark-grey asphalt.
+  const marksGeo = new T.PlaneGeometry(0.28, 0.9);
   const marksMat = new T.MeshBasicMaterial({
-    color: 0x070707,
+    color: 0x000000,
     transparent: true,
-    opacity: 0.65,
+    opacity: 0.85,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -2,
   });
   marksMesh = new T.InstancedMesh(marksGeo, marksMat, MARKS_POOL);
   marksMesh.frustumCulled = false;
@@ -177,7 +184,7 @@ function spawnMark(x, z) {
   const i = marksWriteIdx;
   marksWriteIdx = (marksWriteIdx + 1) % MARKS_POOL;
   marksActive[i] = 1;
-  _scratchPos.set(x, 0.01, z);  // 1cm above strip to avoid z-fighting
+  _scratchPos.set(x, 0.03, z);  // 3cm above strip + polygonOffset to avoid z-fighting
   _scratchScale.set(1, 1, 1);
   _scratchMat.compose(_scratchPos, _markFlatQuat, _scratchScale);
   marksMesh.setMatrixAt(i, _scratchMat);
