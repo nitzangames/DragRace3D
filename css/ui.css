@@ -25,11 +25,11 @@ canvas#game-canvas {
   background: rgba(8, 12, 20, 0.85);
 }
 #ui .screen.hidden { display: none; }
-.game-title { font-size: 84px; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 48px; }
+.game-title { font-size: 96px; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 48px; }
 .btn-primary {
   font-size: 44px; font-weight: 700; padding: 18px 56px;
   background: #d65a3a; border: 3px solid #ff8a5a; color: #fff; border-radius: 14px;
   cursor: pointer; touch-action: manipulation;
 }
 .btn-primary:active { background: #b04020; }
-.version { position: absolute; bottom: 24px; font-size: 14px; opacity: 0.5; }
+.version { position: absolute; bottom: 24px; left: 0; right: 0; text-align: center; font-size: 14px; opacity: 0.5; }
