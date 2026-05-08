@@ -69,8 +69,14 @@ export function buildRaceBalance(careerState, seed) {
   playerFinal.color1 = ownedCar.paint.primary;
   playerFinal.color2 = ownedCar.paint.secondary;
 
-  const opponentId = pickOpponentCarId(careerState.classIndex, ownedCar.carId, seed);
-  const opponentBase = balance.cars.find(c => c.id === opponentId);
+  // Opponent races the SAME stock car as the player. This makes the early
+  // career fair (skill match on RT + shift quality) and lets the player's
+  // upgrades (engine/turbo/tires/weight) translate cleanly into a winning
+  // edge as they progress. A different-car opponent disadvantaged the player
+  // on day one because cheaper starter cars are objectively slower than
+  // their pricier classmates. (The opponent picker is still exported for
+  // future use — e.g. Plan-3 RotW or championship modes.)
+  const opponentBase = playerBase;
   const opponentParts = { engine: 0, turbo: 0, transmission: 0, tires: 0, weight: 0 };
   const opponentWithParts = applyPartsToCar(opponentBase, opponentParts, balance.parts);
   const opponentFinal = applyTuningToCar(opponentWithParts, balance.defaultTune(opponentBase));

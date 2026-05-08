@@ -355,15 +355,28 @@ function showResults() {
       <div id="res-detail" style="font-size:32px;margin-bottom:16px"></div>
       <div id="res-rt" style="font-size:24px;opacity:0.8;margin-bottom:32px"></div>
       <button id="btn-rerun" class="btn-primary">RACE AGAIN</button>
+      <button id="btn-results-garage" class="btn-secondary">GARAGE</button>
     `;
     document.getElementById('ui').appendChild(el);
     document.getElementById('btn-rerun').addEventListener('click', () => {
+      // Stop the rAF race loop so it doesn't re-trigger showResults() on the
+      // next frame (raceState is still 'finished'). startRace() flips it back
+      // on; showCareerHome() leaves it off until NEXT RACE.
+      started = false;
       el.remove();
       if (careerState && !quickRaceMode) {
-        showCareerHome();
+        // Take user straight to a new race (their natural expectation).
+        onNextRace();
       } else {
         startRace();  // quick race fallback / no career
       }
+    });
+    document.getElementById('btn-results-garage').addEventListener('click', () => {
+      started = false;
+      el.remove();
+      if (!careerState) careerState = newCareer();
+      renderGarage(careerState, onGarageCarPick);
+      show('screen-garage');
     });
   }
   show('screen-results');
