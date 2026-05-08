@@ -8,9 +8,9 @@ import { createChaseCamera, updateChaseCamera } from './camera3d.js';
 import { buildTachSVG } from './tach.js';
 import { resetEffects, updateEffects } from './effects.js';
 import { loadCareer, saveCareer } from './save.js';
-import { newCareer, addOwnedCar, spendGold, recordWin, recordLoss } from './career.js';
+import { newCareer, addOwnedCar, spendGold, recordWin, recordLoss, setCurrentCar } from './career.js';
 import { renderFirstCarGrid, buildOwnedCarInstance, renderCareerHome, buildRaceBalance } from './career-flow.js';
-import { renderGarage } from './garage.js';
+import { renderGarage, renderCarDetail } from './garage.js';
 import { computeRaceReward } from './economy.js';
 
 const canvas = document.getElementById('game-canvas');
@@ -59,6 +59,8 @@ initInput(gameData);
 let careerState = null;
 let raceBalance = balance; // current race's balance — reset by each race entrypoint
 let quickRaceMode = false;
+let activeOwnedCar = null;
+let activeTab = 'parts';
 
 async function initTitleButtons() {
   const continueBtn = document.getElementById('btn-continue-career');
@@ -119,8 +121,41 @@ function onGarage() {
 }
 
 function onGarageCarPick(carId) {
-  console.log('GARAGE car pick:', carId);
-  // Plan-2 Task 13 — show car detail
+  activeOwnedCar = careerState.ownedCars.find(c => c.carId === carId);
+  activeTab = 'parts';
+  // Reset visual tab state to PARTS
+  document.querySelectorAll('#screen-cardetail .tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === activeTab);
+  });
+  renderCarDetail(careerState, activeOwnedCar);
+  renderActiveTab();
+  show('screen-cardetail');
+}
+
+function onTabChange(tab) {
+  activeTab = tab;
+  document.querySelectorAll('#screen-cardetail .tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === activeTab);
+  });
+  renderCarDetail(careerState, activeOwnedCar);
+  renderActiveTab();
+}
+
+function renderActiveTab() {
+  const body = document.getElementById('cardetail-tabbody');
+  body.innerHTML = '';
+  switch (activeTab) {
+    case 'parts': body.textContent = 'PARTS UI — Task 14'; break;
+    case 'tune':  body.textContent = 'TUNE UI — Task 15';  break;
+    case 'paint': body.textContent = 'PAINT UI — Task 16'; break;
+    case 'sell':  body.textContent = 'SELL UI — Task 17';  break;
+  }
+}
+
+async function onSetCurrent() {
+  careerState = setCurrentCar(careerState, activeOwnedCar.carId);
+  await saveCareer(careerState);
+  renderCarDetail(careerState, activeOwnedCar);
 }
 
 initTitleButtons();
@@ -136,6 +171,15 @@ document.getElementById('btn-garage-back').addEventListener('click', () => {
 document.getElementById('btn-garage-buy').addEventListener('click', () => {
   console.log('BUY NEW CAR (todo: shop screen)');
 });
+
+document.querySelectorAll('#screen-cardetail .tab').forEach(btn => {
+  btn.addEventListener('click', () => onTabChange(btn.dataset.tab));
+});
+document.getElementById('btn-cardetail-back').addEventListener('click', () => {
+  renderGarage(careerState, onGarageCarPick);
+  show('screen-garage');
+});
+document.getElementById('btn-cardetail-set-current').addEventListener('click', onSetCurrent);
 
 async function onNextRace() {
   raceBalance = buildRaceBalance(careerState, Date.now() | 0);

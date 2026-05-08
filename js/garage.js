@@ -20,3 +20,14 @@ export function renderGarage(careerState, onCarPick) {
     list.appendChild(tile);
   }
 }
+
+export function renderCarDetail(careerState, ownedCar) {
+  const car = balance.cars.find(c => c.id === ownedCar.carId);
+  document.getElementById('cardetail-name').textContent = car.name;
+  document.getElementById('cardetail-class').textContent =
+    'CLASS ' + CLASS_NAMES[car.classIndex] + ' · ' + car.archetype;
+
+  // SET AS CURRENT visibility — hide if already current
+  const setBtn = document.getElementById('btn-cardetail-set-current');
+  setBtn.classList.toggle('hidden', careerState.currentCarId === car.id);
+}
