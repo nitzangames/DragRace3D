@@ -9,7 +9,7 @@ import { buildTachSVG } from './tach.js';
 import { resetEffects, updateEffects } from './effects.js';
 import { loadCareer, saveCareer } from './save.js';
 import { newCareer, addOwnedCar, spendGold } from './career.js';
-import { renderFirstCarGrid, buildOwnedCarInstance } from './career-flow.js';
+import { renderFirstCarGrid, buildOwnedCarInstance, renderCareerHome } from './career-flow.js';
 
 const canvas = document.getElementById('game-canvas');
 const T = window.THREE;
@@ -88,15 +88,18 @@ async function onFirstCarPicked(carId) {
   const carInstance = buildOwnedCarInstance(carId);
   careerState = addOwnedCar(careerState, carInstance);
   await saveCareer(careerState);
-  console.log('NEW CAREER STARTED with', carId, '— gold:', careerState.gold);
-  // Plan-2 Task 10 fills in: show career home
+  showCareerHome();
+}
+
+function showCareerHome() {
+  if (!careerState) return;
+  renderCareerHome(careerState);
+  show('screen-career-home');
 }
 
 document.getElementById('btn-firstcar-back').addEventListener('click', () => show('screen-title'));
 
-function onContinueCareer() {
-  console.log('CONTINUE (todo: career-home screen)');
-}
+function onContinueCareer() { showCareerHome(); }
 function onQuickRace() {
   console.log('QUICK RACE (todo: class-pick → race)');
 }
@@ -105,6 +108,14 @@ function onGarage() {
 }
 
 initTitleButtons();
+
+document.getElementById('btn-career-back').addEventListener('click', () => show('screen-title'));
+document.getElementById('btn-career-garage').addEventListener('click', () => onGarage());
+document.getElementById('btn-next-race').addEventListener('click', () => onNextRace());
+
+function onNextRace() {
+  console.log('NEXT RACE (todo: build race-card)');
+}
 
 function loop(now) {
   // Battery: respect platform pause

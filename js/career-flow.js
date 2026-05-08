@@ -39,3 +39,17 @@ export function buildOwnedCarInstance(carId) {
     paint: { primary: car.color1, secondary: car.color2, stripe: 'none' },
   };
 }
+
+export function renderCareerHome(careerState) {
+  const ownedCar = careerState.ownedCars.find(c => c.carId === careerState.currentCarId);
+  const car = ownedCar ? balance.cars.find(c => c.id === ownedCar.carId) : null;
+
+  document.getElementById('career-class-text').textContent =
+    'CLASS ' + CLASS_NAMES[careerState.classIndex];
+  document.getElementById('career-wins').textContent =
+    `${careerState.classWins} / 5`;
+  document.getElementById('career-gold').textContent =
+    formatGold(careerState.gold) + 'g';
+  document.getElementById('career-currentcar').textContent =
+    car ? car.name : '—';
+}
