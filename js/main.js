@@ -8,8 +8,9 @@ import { createChaseCamera, updateChaseCamera } from './camera3d.js';
 import { buildTachSVG } from './tach.js';
 import { resetEffects, updateEffects } from './effects.js';
 import { loadCareer, saveCareer } from './save.js';
-import { newCareer, addOwnedCar, spendGold } from './career.js';
-import { renderFirstCarGrid, buildOwnedCarInstance, renderCareerHome } from './career-flow.js';
+import { newCareer, addOwnedCar, spendGold, recordWin, recordLoss } from './career.js';
+import { renderFirstCarGrid, buildOwnedCarInstance, renderCareerHome, buildRaceBalance } from './career-flow.js';
+import { computeRaceReward } from './economy.js';
 
 const canvas = document.getElementById('game-canvas');
 const T = window.THREE;
@@ -34,16 +35,19 @@ function show(id) {
 }
 
 function startRace() {
-  if (!scene) {
-    const built = buildRaceScene(balance);
-    scene = built.scene; cars = built.cars; env = built.env;
+  // Rebuild scene every race — player may have switched cars / classes.
+  if (scene) {
+    while (scene.children.length > 0) scene.remove(scene.children[0]);
+    scene = null;
   }
-  resetRace(gameData, balance, Date.now() | 0);
+  const built = buildRaceScene(raceBalance);
+  scene = built.scene; cars = built.cars; env = built.env;
+  resetRace(gameData, raceBalance, Date.now() | 0);
   resetEffects();
   show('hud');
   started = true;
   const tachContainer = document.getElementById('tach-container');
-  tachUpdater = buildTachSVG(tachContainer, balance.cars[0].redlineRpm, GREEN_BAND_RPM);
+  tachUpdater = buildTachSVG(tachContainer, raceBalance.cars[0].redlineRpm, GREEN_BAND_RPM);
 }
 
 document.getElementById('version-text').textContent = VERSION;
@@ -52,6 +56,8 @@ document.getElementById('version-text').textContent = VERSION;
 initInput(gameData);
 
 let careerState = null;
+let raceBalance = balance; // current race's balance — reset by each race entrypoint
+let quickRaceMode = false;
 
 async function initTitleButtons() {
   const continueBtn = document.getElementById('btn-continue-career');
@@ -113,8 +119,9 @@ document.getElementById('btn-career-back').addEventListener('click', () => show(
 document.getElementById('btn-career-garage').addEventListener('click', () => onGarage());
 document.getElementById('btn-next-race').addEventListener('click', () => onNextRace());
 
-function onNextRace() {
-  console.log('NEXT RACE (todo: build race-card)');
+async function onNextRace() {
+  raceBalance = buildRaceBalance(careerState, Date.now() | 0);
+  startRace();
 }
 
 function loop(now) {
@@ -130,7 +137,7 @@ function loop(now) {
   if (started) {
     acc += dt;
     while (acc >= FIXED_DT) {
-      tickRace(gameData, balance, FIXED_DT);
+      tickRace(gameData, raceBalance, FIXED_DT);
       acc -= FIXED_DT;
     }
     if (tachUpdater) tachUpdater.update(gameData.rpm[0], gameData.gear[0], gameData.slip[0]);
@@ -157,7 +164,6 @@ requestAnimationFrame(loop);
 // state to tell the player what to do next.
 const shiftHintEl = document.getElementById('shift-hint');
 const gasHintEl   = document.getElementById('gas-hint');
-const playerRedline = balance.cars[PLAYER_CAR_IDX].redlineRpm;
 function updateButtonHints(gd) {
   let leftHint = '', rightHint = '';
   let leftFlash = false;
@@ -171,6 +177,7 @@ function updateButtonHints(gd) {
   } else if (state === 'racing') {
     rightHint = 'HOLD';
     const rpm = gd.rpm[PLAYER_CAR_IDX];
+    const playerRedline = raceBalance.cars[PLAYER_CAR_IDX].redlineRpm;
     const inGreen = rpm >= playerRedline - GREEN_BAND_RPM && rpm < playerRedline;
     if (inGreen && gd.gear[PLAYER_CAR_IDX] < 4) {
       leftHint = 'PRESS!';
@@ -196,7 +203,11 @@ function showResults() {
     document.getElementById('ui').appendChild(el);
     document.getElementById('btn-rerun').addEventListener('click', () => {
       el.remove();
-      startRace();
+      if (careerState && !quickRaceMode) {
+        showCareerHome();
+      } else {
+        startRace();  // quick race fallback / no career
+      }
     });
   }
   show('screen-results');
@@ -210,4 +221,30 @@ function showResults() {
     `Your ET: ${playerET == null ? '—' : playerET.toFixed(3) + 's'}   Opponent: ${oppET == null ? '—' : oppET.toFixed(3) + 's'}`;
   document.getElementById('res-rt').textContent =
     `RT: ${gameData.rtS[PLAYER_CAR_IDX].toFixed(3)}s`;
+
+  // Record career result if we're in career mode (not quick race)
+  recordCareerResult();
+
+  async function recordCareerResult() {
+    if (!careerState || quickRaceMode) return;
+    const won = gameData.winnerCarIdx === PLAYER_CAR_IDX;
+    const perfectRT = gameData.rtS[PLAYER_CAR_IDX] > 0 && gameData.rtS[PLAYER_CAR_IDX] < 0.100;
+    const reward = computeRaceReward({
+      classIndex: careerState.classIndex,
+      won,
+      mode: 'career',
+      perfectRT,
+    });
+    if (won) {
+      careerState = recordWin(careerState, { gold: reward });
+    } else {
+      careerState = recordLoss(careerState, { gold: reward });
+    }
+    await saveCareer(careerState);
+    // Append gold delta to results screen
+    const goldEl = document.createElement('div');
+    goldEl.style.cssText = 'font-size:24px; color:#ffd14a; margin-top:12px;';
+    goldEl.textContent = `+${reward}g  · Total: ${careerState.gold.toLocaleString()}g`;
+    document.getElementById('screen-results').appendChild(goldEl);
+  }
 }
