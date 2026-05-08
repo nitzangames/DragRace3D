@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { allocGameData, resetRace } from '../js/gameData.js';
 import { balance } from '../js/balance.js';
-import { NUM_CARS } from '../js/constants.js';
+import { NUM_CARS, FIXED_DT } from '../js/constants.js';
+import { tickRace } from '../js/race-logic.js';
 
 test('allocGameData allocates parallel arrays of the right size', () => {
   const gd = allocGameData(balance);
@@ -22,4 +23,22 @@ test('resetRace puts cars in lanes and at idle RPM', () => {
   assert.equal(gd.rpm[0], balance.cars[0].idleRpm);
   assert.equal(gd.raceState, 'intro');
   assert.equal(gd.seed, 42);
+});
+
+test('race state: intro elapses then enters staging', () => {
+  const gd = allocGameData(balance);
+  resetRace(gd, balance, 1);
+  // Run 2 seconds of intro (intro lasts 2s by spec)
+  for (let t = 0; t < 2.0; t += FIXED_DT) tickRace(gd, balance, FIXED_DT);
+  assert.equal(gd.raceState, 'staging');
+});
+
+test('race state: staging → tree begins when player presses both buttons', () => {
+  const gd = allocGameData(balance);
+  resetRace(gd, balance, 1);
+  for (let t = 0; t < 2.0; t += FIXED_DT) tickRace(gd, balance, FIXED_DT);
+  gd.inputGas[0] = 1; gd.inputShift[0] = 1;
+  gd.inputGas[1] = 1; gd.inputShift[1] = 1;
+  for (let t = 0; t < 0.6; t += FIXED_DT) tickRace(gd, balance, FIXED_DT);
+  assert.equal(gd.raceState, 'tree');
 });
