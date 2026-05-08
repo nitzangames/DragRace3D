@@ -127,20 +127,17 @@ export function buildTachSVG(parentEl, redline, greenBand) {
   svg.appendChild(centerLabel);
 
   // --- Needle (long, red, full diameter — tip and tail both visible) ---
-  // Tip goes to (r - 18) from center; tail extends 30px opposite direction
+  // Tip goes to (r - 22) from center; tail extends opposite direction.
+  // Stroke is thick enough to read at any angle on a 540px-wide phone screen.
   const needleTip  = r - 22;
-  const needleTail = 30;
+  const needleTail = 55;
   const needle = document.createElementNS(SVG_NS, 'line');
-  // At rotate=0 (which becomes rotate(-135)), the needle points upward (svg default).
-  // After rotate(-135 + deg), at deg=0 the needle points lower-left.
-  // x1,y1 = hub end (tail, negative direction = +y in SVG = toward top after rotate)
-  // x2,y2 = tip end
   needle.setAttribute('x1', cx);
   needle.setAttribute('y1', cy + needleTail);   // tail end (behind center)
   needle.setAttribute('x2', cx);
   needle.setAttribute('y2', cy - needleTip);    // tip end (in front)
   needle.setAttribute('stroke', '#e8102a');
-  needle.setAttribute('stroke-width', 5);
+  needle.setAttribute('stroke-width', 9);
   needle.setAttribute('stroke-linecap', 'round');
   needle.setAttribute('transform-origin', `${cx} ${cy}`);
   svg.appendChild(needle);

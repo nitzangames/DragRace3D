@@ -18,7 +18,7 @@ ARCHETYPES.sedan = function (color1, color2) {
     new T.BoxGeometry(1.55, 0.95, 2.0),
     new T.MeshLambertMaterial({ color: color2 })
   ); cabin.position.set(0, 1.45, -0.05); g.add(cabin);
-  addWheels(g, 0.36, 1.5, 1.2, 0.36, 1.5, 0.95);
+  addWheels(g, 0.36, 0.85, 1.2, 0.36, 0.85, 0.95);
   addBumpers(g, 1.7, 4.0, 0.55);
   return g;
 };
@@ -40,7 +40,7 @@ ARCHETYPES.hatch = function (color1, color2) {
     f.position.set(px, 0.55, pz); g.add(f);
   }
   addWing(g, 1.3, 0.06, 0.32, 0.5, 1.2, -1.7, 0x111111);
-  addWheels(g, 0.4, 1.55, 1.25, 0.4, 1.55, 0.95);
+  addWheels(g, 0.4, 0.92, 1.25, 0.4, 0.92, 0.95);
   return g;
 };
 
@@ -60,7 +60,7 @@ ARCHETYPES.sport = function (color1, color2) {
     new T.MeshLambertMaterial({ color: color1 })
   ); hoodRidge.position.set(0, 0.83, 1.4); g.add(hoodRidge);
   addWing(g, 1.5, 0.06, 0.3, 0.5, 1.0, -2.15, 0x111111);
-  addWheels(g, 0.4, 1.6, 1.7, 0.4, 1.6, 1.35);
+  addWheels(g, 0.4, 0.92, 1.7, 0.4, 0.92, 1.35);
   return g;
 };
 
@@ -87,7 +87,7 @@ ARCHETYPES.muscle = function (color1, color2) {
     exh.rotation.x = Math.PI / 2;
     exh.position.set(sx, 0.4, -2.6); g.add(exh);
   }
-  addWheels(g, 0.46, 1.65, 1.8, 0.5, 1.7, 1.5);
+  addWheels(g, 0.46, 0.97, 1.8, 0.5, 0.97, 1.5);
   return g;
 };
 
@@ -117,7 +117,7 @@ ARCHETYPES.supercar = function (color1, color2) {
     );
     haunch.position.set(sx, 0.55, -0.8); g.add(haunch);
   }
-  addWheels(g, 0.42, 1.7, 1.7, 0.48, 1.85, 1.4);
+  addWheels(g, 0.42, 1.02, 1.7, 0.48, 1.02, 1.4);
   return g;
 };
 

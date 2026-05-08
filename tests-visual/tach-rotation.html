@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Tach Rotation Test</title>
+<style>
+  body { margin:0; background:#0a0e14; color:#fff; font-family:system-ui; padding:12px; }
+  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .cell { background:#1a1d22; border-radius:12px; padding:12px; text-align:center; }
+  .cell h3 { font-size:14px; margin-bottom:6px; opacity:0.8; }
+  .tach { width:100%; aspect-ratio:1/1; }
+</style>
+</head>
+<body>
+<div class="grid">
+  <div class="cell"><h3>0 RPM (idle)</h3><div class="tach" id="t-0"></div></div>
+  <div class="cell"><h3>1700 RPM (~1/4)</h3><div class="tach" id="t-1700"></div></div>
+  <div class="cell"><h3>3400 RPM (~half)</h3><div class="tach" id="t-3400"></div></div>
+  <div class="cell"><h3>5100 RPM (~3/4)</h3><div class="tach" id="t-5100"></div></div>
+  <div class="cell"><h3>6000 RPM (green)</h3><div class="tach" id="t-6000"></div></div>
+  <div class="cell"><h3>6800 RPM (redline)</h3><div class="tach" id="t-6800"></div></div>
+  <div class="cell"><h3>7400 RPM (limiter)</h3><div class="tach" id="t-7400"></div></div>
+  <div class="cell"><h3>900 RPM (idle real)</h3><div class="tach" id="t-900"></div></div>
+</div>
+<script type="module">
+  import { buildTachSVG } from '../js/tach.js';
+  const REDLINE = 6800, GREEN_BAND = 800;
+  [
+    [0, 't-0'], [1700, 't-1700'], [3400, 't-3400'], [5100, 't-5100'],
+    [6000, 't-6000'], [6800, 't-6800'], [7400, 't-7400'], [900, 't-900'],
+  ].forEach(([rpm, id]) => {
+    const t = buildTachSVG(document.getElementById(id), REDLINE, GREEN_BAND);
+    t.update(rpm, 1);
+  });
+</script>
+</body></html>
