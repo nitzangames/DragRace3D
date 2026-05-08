@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Drag Race 3D</title>
+  <link rel="stylesheet" href="css/ui.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn-play.nitzan.games/lib/play-sdk.js"></script>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game-canvas" width="1080" height="1920"></canvas>
+    <div id="ui">
+      <div id="screen-title" class="screen">
+        <h1 class="game-title">DRAG RACE 3D</h1>
+        <button id="btn-start" class="btn-primary">START RACE</button>
+        <div class="version" id="version-text"></div>
+      </div>
+      <div id="hud" class="screen hidden hud-overlay">
+        <div id="hud-time" class="hud-chip top-left">0.00s</div>
+        <div id="hud-speed" class="hud-chip top-right">0 mph</div>
+        <div id="hud-gear" class="hud-chip top-center">GEAR 1</div>
+        <div id="tach-container"></div>
+        <button id="shift-button" class="race-button shift-button">
+          <span class="btn-hint" id="shift-hint"></span>
+          <span class="btn-main">SHIFT</span>
+          <span class="btn-key">[LEFT SHIFT]</span>
+        </button>
+        <button id="gas-button" class="race-button gas-button">
+          <span class="btn-hint" id="gas-hint"></span>
+          <span class="btn-main">GAS</span>
+          <span class="btn-key">[SPACEBAR]</span>
+        </button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

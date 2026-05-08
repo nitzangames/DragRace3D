@@ -1,0 +1,14 @@
+.git/*
+.superpowers/*
+docs/*
+tests/*
+node_modules/*
+.DS_Store
+dev-server.sh
+package.json
+.zipignore
+*.log
+ss-*.png
+screenshot-*.png
+thumbnail.html
+render-thumbnail.js

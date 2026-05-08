@@ -1,0 +1,121 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: #0a0e14; color: #fff;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* 9:16 aspect-ratio container — both canvas and HUD sit inside this */
+#game-container {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  height: 100%;
+  max-width: 100%;
+}
+
+#game-container canvas#game-canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  display: block;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#ui {
+  position: absolute; inset: 0;
+  pointer-events: none;
+}
+#ui .screen {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  pointer-events: auto;
+  background: rgba(8, 12, 20, 0.85);
+}
+#ui .screen.hidden { display: none; }
+.game-title { font-size: 96px; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 48px; }
+.btn-primary {
+  font-size: 44px; font-weight: 700; padding: 18px 56px;
+  background: #d65a3a; border: 3px solid #ff8a5a; color: #fff; border-radius: 14px;
+  cursor: pointer; touch-action: manipulation;
+}
+.btn-primary:active { background: #b04020; }
+.version { position: absolute; bottom: 24px; left: 0; right: 0; text-align: center; font-size: 14px; opacity: 0.5; }
+
+.hud-overlay {
+  background: transparent !important;
+  pointer-events: none;
+}
+.hud-overlay > * { pointer-events: auto; }
+
+.hud-chip {
+  position: absolute;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 600;
+  background: rgba(0,0,0,0.45);
+  padding: 6px 12px;
+  border-radius: 8px;
+}
+.hud-chip.top-left  { top: 24px; left: 24px; }
+.hud-chip.top-right { top: 24px; right: 24px; }
+.hud-chip.top-center { top: 24px; left: 50%; transform: translateX(-50%); }
+
+#tach-container {
+  position: absolute;
+  top: 12%;
+  left: 50%; transform: translateX(-50%);
+  width: 65%; aspect-ratio: 1/1;
+  pointer-events: none;
+}
+
+.race-button {
+  position: absolute; bottom: 0;
+  height: 220px; width: 50%;
+  border: none; cursor: pointer; touch-action: manipulation;
+  font-family: system-ui; color: #fff;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 14px 0 18px;
+  gap: 4px;
+}
+.shift-button {
+  left: 0;
+  background: linear-gradient(180deg, #3a4858, #1c2530);
+  border-top: 4px solid #5a6878;
+  border-right: 4px solid #5a6878;
+}
+.shift-button.held { background: #5a7090; }
+.gas-button {
+  right: 0;
+  background: linear-gradient(180deg, #d65a3a, #7a2010);
+  border-top: 4px solid #ff8a5a;
+  border-left: 4px solid #ff8a5a;
+}
+.gas-button.held { background: #ff5a3a; }
+
+/* Stacked button labels: prompt hint above, big main label, small key hint */
+.btn-hint {
+  font-size: 22px; font-weight: 700; letter-spacing: 3px;
+  min-height: 26px; opacity: 0.9; text-transform: uppercase;
+  text-align: center;
+}
+.btn-hint.flash { animation: btn-flash 0.45s ease-in-out infinite alternate; }
+@keyframes btn-flash {
+  from { opacity: 0.4; }
+  to   { opacity: 1.0; }
+}
+.btn-main {
+  font-size: 56px; font-weight: 800; letter-spacing: 4px;
+  line-height: 1.0;
+}
+.btn-key {
+  font-size: 14px; font-weight: 600; opacity: 0.55;
+  letter-spacing: 1.5px;
+}
+/* Hide the keyboard-key hint on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .btn-key { display: none; }
+}

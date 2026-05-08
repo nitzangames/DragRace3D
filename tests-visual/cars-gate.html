@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Cars Gate</title>
+<style>
+  body { margin: 0; background: #0a0e14; color: #fff; font-family: system-ui; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 12px; }
+  .card { background: #20262e; border-radius: 12px; overflow: hidden; }
+  .card canvas { width: 100%; aspect-ratio: 4/3; display: block; }
+  .card .body { padding: 8px 12px; }
+  .card h3 { margin: 0; font-size: 16px; }
+</style>
+</head>
+<body>
+<div class="grid">
+  <div class="card"><canvas id="c-sedan" width="400" height="300"></canvas><div class="body"><h3>sedan</h3></div></div>
+  <div class="card"><canvas id="c-hatch" width="400" height="300"></canvas><div class="body"><h3>hatch</h3></div></div>
+  <div class="card"><canvas id="c-sport" width="400" height="300"></canvas><div class="body"><h3>sport</h3></div></div>
+  <div class="card"><canvas id="c-muscle" width="400" height="300"></canvas><div class="body"><h3>muscle</h3></div></div>
+  <div class="card"><canvas id="c-supercar" width="400" height="300"></canvas><div class="body"><h3>supercar</h3></div></div>
+  <div class="card"><canvas id="c-topfuel" width="400" height="300"></canvas><div class="body"><h3>topfuel</h3></div></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script type="module">
+  import { buildCar, ARCHETYPE_NAMES } from '../js/car-models.js';
+
+  function hexToRgb(hex) {
+    return [(hex >> 16) & 0xff, (hex >> 8) & 0xff, hex & 0xff];
+  }
+
+  function draw2DFallback(canvas, name, color1, color2) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.fillStyle = '#20262e';
+    ctx.fillRect(0, 0, w, h);
+    const [r1, g1, b1] = hexToRgb(color1);
+    const [r2, g2, b2] = hexToRgb(color2);
+    // Body
+    ctx.fillStyle = `rgb(${r1},${g1},${b1})`;
+    ctx.fillRect(w * 0.15, h * 0.45, w * 0.7, h * 0.25);
+    // Cabin
+    ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
+    ctx.fillRect(w * 0.25, h * 0.28, w * 0.5, h * 0.2);
+    // Wheels
+    ctx.fillStyle = '#111';
+    [[0.2, 0.7], [0.75, 0.7]].forEach(([cx, cy]) => {
+      ctx.beginPath(); ctx.arc(w * cx, h * cy, w * 0.07, 0, Math.PI * 2); ctx.fill();
+    });
+    // Label
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, h - 36, w, 36);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(name + ' (WebGL N/A)', w / 2, h - 12);
+  }
+
+  const colors = {
+    sedan:   [0x4d6dd6, 0x2a3950],
+    hatch:   [0xe2c11a, 0x222222],
+    sport:   [0xc83a26, 0x32100d],
+    muscle:  [0x2a8fd4, 0x122a38],
+    supercar:[0x1aaf65, 0x101a14],
+    topfuel: [0xb02a8a, 0x1a1a1a],
+  };
+  const dist = { topfuel: 1.7 };
+
+  // Pre-check WebGL availability before attempting any renderer construction
+  function webglAvailable() {
+    try {
+      const c = document.createElement('canvas');
+      return !!(c.getContext('webgl') || c.getContext('experimental-webgl'));
+    } catch (e) { return false; }
+  }
+  const hasWebGL = webglAvailable();
+
+  ARCHETYPE_NAMES.forEach(name => {
+    const canvas = document.getElementById('c-' + name);
+    if (!hasWebGL) {
+      draw2DFallback(canvas, name, colors[name][0], colors[name][1]);
+      return;
+    }
+    try {
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x20262e);
+      scene.add(new THREE.AmbientLight(0x556070, 0.5));
+      const k = new THREE.DirectionalLight(0xffffff, 1.2); k.position.set(4, 6, 5); scene.add(k);
+      const r = new THREE.DirectionalLight(0x88aaff, 0.7); r.position.set(-3, 4, -4); scene.add(r);
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(24, 24), new THREE.MeshLambertMaterial({ color: 0x2a2d33 }));
+      floor.rotation.x = -Math.PI/2; scene.add(floor);
+      const grid = new THREE.GridHelper(24, 24, 0x40464e, 0x303640);
+      grid.material.transparent = true; grid.material.opacity = 0.6; scene.add(grid);
+      const car = buildCar(name, colors[name][0], colors[name][1]);
+      car.rotation.y = -0.45; scene.add(car);
+      const dm = dist[name] || 1;
+      const cam = new THREE.PerspectiveCamera(34, canvas.width/canvas.height, 0.1, 100);
+      cam.position.set(5.5*dm, 2.5*dm, 5.5*dm); cam.lookAt(0, 0.7, 0);
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(canvas.width, canvas.height, false);
+      renderer.render(scene, cam);
+    } catch (e) {
+      console.warn('WebGL failed for ' + name + ':', e.message);
+      draw2DFallback(canvas, name, colors[name][0], colors[name][1]);
+    }
+  });
+</script>
+</body></html>
