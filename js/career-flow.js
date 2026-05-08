@@ -87,12 +87,12 @@ export function buildRaceBalance(careerState, seed) {
   const handicapTaper = Math.max(0, (5 - careerState.classWins) / 5);
   const handicappedAi = {
     ...balance.ai,
-    // Race 1: AI rtMean ≈ 1.32s (vs human ~0.30-0.50s) → 0.8-1.0s off-line
-    // disadvantage. Tapers to 0.32 by classWins=5.
-    rtMean: balance.ai.rtMean + 1.00 * handicapTaper,
-    // Race 1: AI shifts way below redline (effectively useless gear-2
-    // shifting). Tapers to ~250 by classWins=5.
-    shiftBandSlackRpm: balance.ai.shiftBandSlackRpm + 2500 * handicapTaper,
+    // Race 1: AI rtMean ≈ 0.62s (player ~0.30s → 0.3s off-line edge).
+    // Tapers to 0.32 by classWins=5 (no handicap → tight race).
+    rtMean: balance.ai.rtMean + 0.30 * handicapTaper,
+    // Race 1: AI shifts ~800 RPM before redline (slightly suboptimal).
+    // Tapers to ~250 by classWins=5 (near-optimal AI).
+    shiftBandSlackRpm: balance.ai.shiftBandSlackRpm + 600 * handicapTaper,
   };
 
   return { ...balance, cars: [playerFinal, opponentFinal], ai: handicappedAi };
