@@ -62,7 +62,7 @@ export function buildClassicEnv(scene) {
   );
   post.position.y = 3; tree.add(post);
   const treeColors = [0x554000, 0x554000, 0x554000, 0x551100, 0x115522]; // dim defaults
-  const ambers = []; let green = null;
+  const ambers = []; const greens = [];
   for (let i = 0; i < 5; i++) {
     for (const sx of [-1, 1]) {
       const bulb = new T.Mesh(
@@ -72,7 +72,7 @@ export function buildClassicEnv(scene) {
       bulb.position.set(sx * 0.5, 5.5 - i * 0.9, 0);
       tree.add(bulb);
       if (i < 3) ambers.push(bulb);
-      if (i === 4) green = bulb;
+      if (i === 4) greens.push(bulb);
     }
   }
   tree.position.set(0, 0, -1.5);
@@ -95,7 +95,7 @@ export function buildClassicEnv(scene) {
   gantry.position.set(0, 0, -402.336);
   scene.add(gantry);
 
-  return { strip, tree, ambers, green };
+  return { strip, tree, ambers, greens };
 }
 
 /** Update christmas tree bulb materials given current race state. */
@@ -106,8 +106,8 @@ export function updateTreeFromGameData(envObjects, gameData) {
     const lit = (i < gameData.treeAmbersLit * 2);
     envObjects.ambers[i].material.color.setHex(lit ? amberOn : amberOff);
   }
-  if (envObjects.green) {
-    const greenLit = gameData.treeGreenAtS > 0;
-    envObjects.green.material.color.setHex(greenLit ? greenOn : greenOff);
+  const greenLit = gameData.treeGreenAtS > 0;
+  for (const bulb of envObjects.greens || []) {
+    bulb.material.color.setHex(greenLit ? greenOn : greenOff);
   }
 }

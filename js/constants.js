@@ -1,4 +1,4 @@
-export const VERSION = 'v0.4.12';
+export const VERSION = 'v0.4.13';
 
 export const FIXED_DT = 1 / 120;
 export const MAX_DT = 1 / 30;
@@ -8,7 +8,7 @@ export const GREEN_BAND_RPM = 800;              // width of the green shift wind
 export const BLOW_THRESHOLD_S = 1.0;            // RPM at limiter for this long → engine blown
 export const LAUNCH_RPM_OPTIMAL_LOW = 0.50;     // fraction of car redline for ideal launch
 export const LAUNCH_RPM_OPTIMAL_HIGH = 0.65;    // fraction of car redline for ideal launch (upper bound)
-export const TREE_AMBER_INTERVAL_S = 0.4;       // delay between christmas-tree amber bulbs
+export const TREE_AMBER_INTERVAL_S = 0.6;       // delay between christmas-tree amber bulbs
 export const TREE_AMBER_COUNT = 3;
 
 export const NUM_CARS = 2;                      // player + opponent (Plan-1)
