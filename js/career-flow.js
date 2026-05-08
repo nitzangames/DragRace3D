@@ -66,6 +66,8 @@ export function buildRaceBalance(careerState, seed) {
   const playerBase = balance.cars.find(c => c.id === ownedCar.carId);
   const playerWithParts = applyPartsToCar(playerBase, ownedCar.parts, balance.parts);
   const playerFinal = applyTuningToCar(playerWithParts, ownedCar.tune);
+  playerFinal.color1 = ownedCar.paint.primary;
+  playerFinal.color2 = ownedCar.paint.secondary;
 
   const opponentId = pickOpponentCarId(careerState.classIndex, ownedCar.carId, seed);
   const opponentBase = balance.cars.find(c => c.id === opponentId);

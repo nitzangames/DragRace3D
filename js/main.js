@@ -13,6 +13,7 @@ import { renderFirstCarGrid, buildOwnedCarInstance, renderCareerHome, buildRaceB
 import { renderGarage, renderCarDetail } from './garage.js';
 import { renderPartsShop } from './parts-shop.js';
 import { renderTuningUI } from './tuning-ui.js';
+import { renderPaintUI } from './paint-ui.js';
 import { computeRaceReward } from './economy.js';
 
 const canvas = document.getElementById('game-canvas');
@@ -149,7 +150,7 @@ function renderActiveTab() {
   switch (activeTab) {
     case 'parts': renderPartsShop(body, careerState, activeOwnedCar, onInstallPart); break;
     case 'tune':  renderTuningUI(body, activeOwnedCar, onTuneChange); break;
-    case 'paint': body.textContent = 'PAINT UI — Task 16'; break;
+    case 'paint': renderPaintUI(body, activeOwnedCar, onPaintChange); break;
     case 'sell':  body.textContent = 'SELL UI — Task 17';  break;
   }
 }
@@ -180,6 +181,18 @@ async function onTuneChange(newTune) {
   careerState = { ...careerState, ownedCars: newOwned };
   activeOwnedCar = updated;
   await saveCareer(careerState);
+}
+
+async function onPaintChange(newPaint) {
+  const idx = careerState.ownedCars.findIndex(c => c.carId === activeOwnedCar.carId);
+  const updated = { ...careerState.ownedCars[idx], paint: newPaint };
+  const newOwned = [...careerState.ownedCars];
+  newOwned[idx] = updated;
+  careerState = { ...careerState, ownedCars: newOwned };
+  activeOwnedCar = updated;
+  await saveCareer(careerState);
+  // Re-render so swatches show the new selection
+  renderActiveTab();
 }
 
 async function onSetCurrent() {
