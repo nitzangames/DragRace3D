@@ -129,3 +129,29 @@ html, body {
 }
 .btn-secondary:active { background: #444; }
 .btn-secondary.hidden, .btn-primary.hidden { display: none; }
+
+.car-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin: 24px 0;
+  padding: 0 32px;
+  max-width: 720px;
+}
+.car-tile {
+  background: #1a1d22;
+  border: 2px solid #333;
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  text-align: left;
+  color: #fff;
+  font-family: system-ui;
+}
+.car-tile:active { border-color: #ff8a5a; }
+.car-tile h3 { font-size: 22px; margin-bottom: 6px; }
+.car-tile .stats { font-size: 14px; opacity: 0.7; line-height: 1.4; }
+.car-tile .price { font-size: 18px; color: #ffd14a; margin-top: 8px; font-weight: 700; }
+.car-tile.affordable { border-color: #2aa050; }
+.car-tile.unaffordable { opacity: 0.45; cursor: not-allowed; }
+.subtitle { color: #ccc; opacity: 0.8; margin-bottom: 20px; font-size: 18px; }

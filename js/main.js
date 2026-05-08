@@ -7,8 +7,9 @@ import { buildRaceScene, renderFrame } from './renderer3d.js';
 import { createChaseCamera, updateChaseCamera } from './camera3d.js';
 import { buildTachSVG } from './tach.js';
 import { resetEffects, updateEffects } from './effects.js';
-import { loadCareer } from './save.js';
-import { newCareer } from './career.js';
+import { loadCareer, saveCareer } from './save.js';
+import { newCareer, addOwnedCar, spendGold } from './career.js';
+import { renderFirstCarGrid, buildOwnedCarInstance } from './career-flow.js';
 
 const canvas = document.getElementById('game-canvas');
 const T = window.THREE;
@@ -73,8 +74,26 @@ async function initTitleButtons() {
 
 function onNewCareer() {
   careerState = newCareer();
-  console.log('NEW CAREER (todo: car-pick screen)');
+  renderFirstCarGrid(
+    document.getElementById('firstcar-grid'),
+    careerState,
+    onFirstCarPicked
+  );
+  show('screen-firstcar');
 }
+
+async function onFirstCarPicked(carId) {
+  const car = balance.cars.find(c => c.id === carId);
+  careerState = spendGold(careerState, car.price);
+  const carInstance = buildOwnedCarInstance(carId);
+  careerState = addOwnedCar(careerState, carInstance);
+  await saveCareer(careerState);
+  console.log('NEW CAREER STARTED with', carId, '— gold:', careerState.gold);
+  // Plan-2 Task 10 fills in: show career home
+}
+
+document.getElementById('btn-firstcar-back').addEventListener('click', () => show('screen-title'));
+
 function onContinueCareer() {
   console.log('CONTINUE (todo: career-home screen)');
 }
