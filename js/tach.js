@@ -164,9 +164,22 @@ export function buildTachSVG(parentEl, redline, greenBand) {
     needle.setAttribute('y2', tipY.toFixed(1));
   }
 
+  // Visual-only bounce: needle wiggles at idle (small) and at limiter (big)
+  // to convey engine state. Doesn't affect physics — caller's rpm is unchanged.
+  let frame = 0;
+  const IDLE_THRESHOLD = 1500;
   return {
     update(rpm, gear) {
-      setNeedle(rpm);
+      frame++;
+      let displayRpm = rpm;
+      if (rpm < IDLE_THRESHOLD) {
+        // Idle bounce: ~6Hz oscillation ± random noise
+        displayRpm += Math.sin(frame * 0.42) * 22 + (Math.random() - 0.5) * 14;
+      } else if (rpm >= redline) {
+        // Limiter bounce: ~9Hz oscillation, larger amplitude, more chaotic
+        displayRpm += Math.sin(frame * 0.92) * 160 + (Math.random() - 0.5) * 120;
+      }
+      setNeedle(displayRpm);
     },
   };
 }
