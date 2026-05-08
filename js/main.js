@@ -10,6 +10,7 @@ import { resetEffects, updateEffects } from './effects.js';
 import { loadCareer, saveCareer } from './save.js';
 import { newCareer, addOwnedCar, spendGold, recordWin, recordLoss } from './career.js';
 import { renderFirstCarGrid, buildOwnedCarInstance, renderCareerHome, buildRaceBalance } from './career-flow.js';
+import { renderGarage } from './garage.js';
 import { computeRaceReward } from './economy.js';
 
 const canvas = document.getElementById('game-canvas');
@@ -110,7 +111,16 @@ function onQuickRace() {
   console.log('QUICK RACE (todo: class-pick → race)');
 }
 function onGarage() {
-  console.log('GARAGE (todo: garage screen)');
+  if (!careerState) {
+    careerState = newCareer();  // allow garage browsing without a save (no persistence yet)
+  }
+  renderGarage(careerState, onGarageCarPick);
+  show('screen-garage');
+}
+
+function onGarageCarPick(carId) {
+  console.log('GARAGE car pick:', carId);
+  // Plan-2 Task 13 — show car detail
 }
 
 initTitleButtons();
@@ -118,6 +128,14 @@ initTitleButtons();
 document.getElementById('btn-career-back').addEventListener('click', () => show('screen-title'));
 document.getElementById('btn-career-garage').addEventListener('click', () => onGarage());
 document.getElementById('btn-next-race').addEventListener('click', () => onNextRace());
+
+document.getElementById('btn-garage-back').addEventListener('click', () => {
+  if (careerState && careerState.ownedCars.length > 0) showCareerHome();
+  else show('screen-title');
+});
+document.getElementById('btn-garage-buy').addEventListener('click', () => {
+  console.log('BUY NEW CAR (todo: shop screen)');
+});
 
 async function onNextRace() {
   raceBalance = buildRaceBalance(careerState, Date.now() | 0);
