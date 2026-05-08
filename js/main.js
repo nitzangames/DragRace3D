@@ -8,7 +8,7 @@ import { createChaseCamera, updateChaseCamera } from './camera3d.js';
 import { buildTachSVG } from './tach.js';
 import { resetEffects, updateEffects } from './effects.js';
 import { loadCareer, saveCareer } from './save.js';
-import { newCareer, addOwnedCar, spendGold, recordWin, recordLoss, setCurrentCar } from './career.js';
+import { newCareer, addOwnedCar, removeOwnedCar, spendGold, recordWin, recordLoss, setCurrentCar } from './career.js';
 import { renderFirstCarGrid, buildOwnedCarInstance, renderCareerHome, buildRaceBalance } from './career-flow.js';
 import { renderGarage, renderCarDetail } from './garage.js';
 import { renderPartsShop } from './parts-shop.js';
@@ -151,7 +151,7 @@ function renderActiveTab() {
     case 'parts': renderPartsShop(body, careerState, activeOwnedCar, onInstallPart); break;
     case 'tune':  renderTuningUI(body, activeOwnedCar, onTuneChange); break;
     case 'paint': renderPaintUI(body, activeOwnedCar, onPaintChange); break;
-    case 'sell':  body.textContent = 'SELL UI — Task 17';  break;
+    case 'sell':  renderSellUI(body, activeOwnedCar); break;
   }
 }
 
@@ -193,6 +193,29 @@ async function onPaintChange(newPaint) {
   await saveCareer(careerState);
   // Re-render so swatches show the new selection
   renderActiveTab();
+}
+
+function renderSellUI(parent, ownedCar) {
+  const car = balance.cars.find(c => c.id === ownedCar.carId);
+  const sellPrice = Math.floor(car.price * 0.5);  // 50% of new price
+  parent.innerHTML = `
+    <div style="font-size:18px;margin-bottom:14px;">
+      Sell ${car.name} for <span class="gold">${sellPrice.toLocaleString()}g</span>?
+    </div>
+    <p class="subtitle">You'll lose the parts and tune installed on this car.</p>
+    <button id="btn-sell-confirm" class="btn-primary" ${
+      careerState.ownedCars.length <= 1 ? 'disabled' : ''
+    }>SELL</button>
+    ${careerState.ownedCars.length <= 1 ? '<p class="subtitle" style="color:#ff8a5a;">Cannot sell your only car.</p>' : ''}
+  `;
+  if (careerState.ownedCars.length <= 1) return;
+  document.getElementById('btn-sell-confirm').addEventListener('click', async () => {
+    careerState = removeOwnedCar(careerState, ownedCar.carId);
+    careerState = { ...careerState, gold: careerState.gold + sellPrice };
+    await saveCareer(careerState);
+    renderGarage(careerState, onGarageCarPick);
+    show('screen-garage');
+  });
 }
 
 async function onSetCurrent() {
