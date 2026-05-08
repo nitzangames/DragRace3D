@@ -16,6 +16,7 @@ import { renderBuyShop } from './buy-shop.js';
 import { renderTuningUI } from './tuning-ui.js';
 import { renderPaintUI } from './paint-ui.js';
 import { computeRaceReward } from './economy.js';
+import { renderQuickRace, buildQuickRaceBalance } from './quick-race.js';
 
 const canvas = document.getElementById('game-canvas');
 const T = window.THREE;
@@ -105,6 +106,7 @@ async function onFirstCarPicked(carId) {
 }
 
 function showCareerHome() {
+  quickRaceMode = false;
   if (!careerState) return;
   renderCareerHome(careerState);
   show('screen-career-home');
@@ -114,8 +116,16 @@ document.getElementById('btn-firstcar-back').addEventListener('click', () => sho
 
 function onContinueCareer() { showCareerHome(); }
 function onQuickRace() {
-  console.log('QUICK RACE (todo: class-pick → race)');
+  renderQuickRace(onQuickRacePick);
+  show('screen-quickrace');
 }
+function onQuickRacePick(carId) {
+  raceBalance = buildQuickRaceBalance(carId, Date.now() | 0);
+  quickRaceMode = true;
+  startRace();
+}
+
+document.getElementById('btn-quickrace-back').addEventListener('click', () => show('screen-title'));
 function onGarage() {
   if (!careerState) {
     careerState = newCareer();  // allow garage browsing without a save (no persistence yet)
@@ -265,6 +275,7 @@ document.getElementById('btn-cardetail-back').addEventListener('click', () => {
 document.getElementById('btn-cardetail-set-current').addEventListener('click', onSetCurrent);
 
 async function onNextRace() {
+  quickRaceMode = false;  // career race
   raceBalance = buildRaceBalance(careerState, Date.now() | 0);
   startRace();
 }
