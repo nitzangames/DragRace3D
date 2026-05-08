@@ -139,8 +139,11 @@ function handleShiftTap(gd, balance, i) {
 
 function tickRacing(gd, balance, dt) {
   ensureAiPlan(gd, balance);
-  // AI shift logic — synthesize an edge tap when RPM crosses target
-  if (!gd.finished[1] && !gd.blown[1] && gd.gear[1] < 4) {
+  // AI shift logic — synthesize an edge tap when wheel-driven RPM crosses
+  // the target. The velocity guard prevents the AI from shifting on the very
+  // first racing frame, when RPM is still high from staging — the same trap
+  // the player test guards against.
+  if (!gd.finished[1] && !gd.blown[1] && gd.gear[1] < 4 && gd.velMs[1] > 4) {
     const targetRpm = gd._aiPlan.shiftAtRpm[gd.gear[1] - 1];
     if (gd.rpm[1] >= targetRpm) {
       handleShiftTap(gd, balance, 1);
@@ -185,14 +188,22 @@ function pickWinner(gd) {
 function stepCar(gd, balance, i, dt) {
   const car = balance.cars[i];
   const wheelRps = gd.velMs[i] / (2 * Math.PI * car.wheelRadius);
-  const wheelTargetRpm = wheelRps * 60 * car.gearRatios[gd.gear[i] - 1] * car.finalDrive;
-  // Launch-RPM floor: when gas is held, engine sits at 70% of torque peak
-  // even if the wheels aren't driving it that fast (clutch-slip approximation
-  // for the launch). 70% sits BELOW typical post-upshift RPM in any gear, so
-  // it doesn't pin the needle after a shift — the wheel-driven term wins
-  // there.
-  const launchFloor = gd.inputGas[i] ? car.torquePeakRpm * 0.7 : car.idleRpm;
-  const targetRpm = Math.max(wheelTargetRpm, launchFloor);
+  const gearRatio = car.gearRatios[gd.gear[i] - 1];
+  const wheelTargetRpm = wheelRps * 60 * gearRatio * car.finalDrive;
+  // Clutch-slip blend: at v=0 with gas held, the engine wants to spin at the
+  // torque peak (good launch). As v grows, the clutch progressively engages,
+  // until at the velocity where the wheels can sustain torque-peak RPM in
+  // the current gear, the wheels drive RPM directly. Tall gears have a wider
+  // slip taper (clutch holds engine high longer); short gears engage quickly.
+  // This avoids both (a) RPM pinning after an upshift (no more "stuck at 3.5")
+  // and (b) cars stalling at low v in tall gears.
+  const vAtPeakRpm = (car.torquePeakRpm / 60 / gearRatio / car.finalDrive)
+                     * 2 * Math.PI * car.wheelRadius;
+  const slipBlend = gd.inputGas[i] && vAtPeakRpm > 0
+    ? Math.max(0, 1 - gd.velMs[i] / vAtPeakRpm)
+    : 0;
+  const blended = car.torquePeakRpm * slipBlend + wheelTargetRpm * (1 - slipBlend);
+  const targetRpm = Math.max(blended, car.idleRpm);
   gd.rpm[i] += (targetRpm - gd.rpm[i]) * Math.min(1, car.engineResponse * dt);
   if (gd.rpm[i] < car.idleRpm) gd.rpm[i] = car.idleRpm;
   const limiterRpm = car.redlineRpm * LIMITER_OVERSHOOT;

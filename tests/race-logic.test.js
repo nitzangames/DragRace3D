@@ -55,11 +55,14 @@ test('physics: car at full gas accelerates forward', () => {
   assert.ok(gd.velMs[0] > 0, 'player should have positive forward velocity');
 });
 
-test('physics: car finishes 1/4 mile in expected time window', () => {
+test('physics: moving car in top gear continues to advance', () => {
+  // Setup: already at speed in top gear (skips the standstill-in-gear-4
+  // problem). Validates that finish detection + force balance work.
   const gd = allocGameData(balance);
   resetRace(gd, balance, 1);
   gd.raceState = 'racing';
-  gd.gear[0] = 4; gd.gear[1] = 4;  // top gear: covers 1/4 mile without engine blow
+  gd.gear[0] = 4; gd.gear[1] = 4;
+  gd.velMs[0] = 30; gd.velMs[1] = 30;
   gd.rpm[0] = 5000; gd.rpm[1] = 5000;
   gd.inputGas[0] = 1; gd.inputGas[1] = 0;
   let t = 0;
@@ -67,7 +70,7 @@ test('physics: car finishes 1/4 mile in expected time window', () => {
     tickRace(gd, balance, FIXED_DT);
     t += FIXED_DT;
   }
-  assert.ok(gd.finished[0], 'car should have finished');
+  assert.ok(gd.finished[0], 'car should have finished within 30s');
   assert.ok(gd.finishTimeS[0] < 30, `finishTime too high: ${gd.finishTimeS[0]}`);
 });
 
@@ -112,7 +115,11 @@ test('full race: deterministic, both cars finish, winner determined', () => {
       }
     } else if (gd.raceState === 'racing') {
       gd.inputGas[0] = 1;
-      if (shiftsLeft > 0 && gd.rpm[0] >= lastRpmAtTap) {
+      // Wait until the car is genuinely moving and the staging-set RPM has
+      // dropped before honoring the shift trigger — otherwise the very first
+      // racing frame (RPM still near limiter from staging) shifts the player
+      // straight to gear 4 at standstill, which is too tall a gear.
+      if (shiftsLeft > 0 && gd.velMs[0] > 4 && gd.rpm[0] >= lastRpmAtTap) {
         gd.inputShiftPressEdge[0] = 1;
         shiftsLeft--;
       }
