@@ -96,3 +96,32 @@ test('shift: tap shift in gear 4 does nothing', () => {
   tickRace(gd, balance, FIXED_DT);
   assert.equal(gd.gear[0], 4);
 });
+
+test('full race: deterministic, both cars finish, winner determined', () => {
+  const gd = allocGameData(balance);
+  resetRace(gd, balance, 12345);
+  let shiftsLeft = 3;
+  let lastRpmAtTap = 6300;
+  let t = 0;
+  while (t < 30 && gd.raceState !== 'finished') {
+    if (gd.raceState === 'staging' || gd.raceState === 'tree') {
+      gd.inputGas[0] = 1; gd.inputShift[0] = 1;
+    } else if (gd.raceState === 'launching') {
+      if (gd.raceTimeS - gd.treeGreenAtS >= 0.30 && gd.inputShift[0]) {
+        gd.inputShift[0] = 0;
+      }
+    } else if (gd.raceState === 'racing') {
+      gd.inputGas[0] = 1;
+      if (shiftsLeft > 0 && gd.rpm[0] >= lastRpmAtTap) {
+        gd.inputShiftPressEdge[0] = 1;
+        shiftsLeft--;
+      }
+    }
+    tickRace(gd, balance, FIXED_DT);
+    t += FIXED_DT;
+  }
+  assert.equal(gd.raceState, 'finished');
+  assert.ok(gd.finished[0] || gd.blown[0], 'player race should resolve');
+  assert.ok(gd.finished[1] || gd.blown[1], 'opponent race should resolve');
+  assert.ok(gd.winnerCarIdx === 0 || gd.winnerCarIdx === 1, 'a winner should be set');
+});

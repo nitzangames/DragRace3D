@@ -4,6 +4,7 @@ import {
   BLOW_THRESHOLD_S, FINISH_LINE_M,
 } from './constants.js';
 import { blowThresholdReached } from './shift-scoring.js';
+import { aiSample } from './ai.js';
 
 const INTRO_DURATION_S = 2.0;
 const STAGING_HOLD_DURATION_S = 0.5; // player must hold both for 0.5s before tree
@@ -34,7 +35,16 @@ function tickIntro(gd, balance, dt) {
   }
 }
 
+function ensureAiPlan(gd, balance) {
+  if (!gd._aiPlan) {
+    gd._aiPlan = aiSample(1, 0, gd.seed, balance);
+  }
+}
+
 function tickStaging(gd, balance, dt) {
+  ensureAiPlan(gd, balance);
+  gd.inputGas[1] = 1;
+  gd.inputShift[1] = 1;
   // Both player and opponent must hold both buttons for STAGING_HOLD_DURATION_S
   // before the tree begins. While staging, RPM rises with held gas.
   for (let i = 0; i < NUM_CARS; i++) revToward(gd, balance, i, dt);
@@ -63,24 +73,21 @@ function revToward(gd, balance, i, dt) {
 function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 
 function tickTree(gd, balance, dt) {
+  // AI continues to hold throughout the tree (until launch)
+  gd.inputGas[1] = 1;
+  gd.inputShift[1] = 1;
   // Light an amber every TREE_AMBER_INTERVAL_S, then green at TREE_AMBER_COUNT * interval.
   for (let i = 0; i < NUM_CARS; i++) revToward(gd, balance, i, dt);
   const t = gd.raceTimeS - gd.treeStartTimeS;
   const ambers = Math.min(TREE_AMBER_COUNT, Math.floor(t / TREE_AMBER_INTERVAL_S));
   gd.treeAmbersLit = ambers;
-  // jump-start detection: any car releases SHIFT before green
+  // Only the player can jump (AI is forced-held by tickStaging/tickTree)
   if (gd.treeGreenAtS === 0) {
-    for (let i = 0; i < NUM_CARS; i++) {
-      if (gd.jumped[i]) continue;
-      if (!gd.inputShift[i]) {
-        gd.jumped[i] = 1;
-        if (i === PLAYER_CAR_IDX) {
-          // Per spec: false start ends race as a loss
-          gd.raceState = 'finished';
-          gd.winnerCarIdx = 1 - PLAYER_CAR_IDX;
-          return;
-        }
-      }
+    if (!gd.inputShift[PLAYER_CAR_IDX] && !gd.jumped[PLAYER_CAR_IDX]) {
+      gd.jumped[PLAYER_CAR_IDX] = 1;
+      gd.raceState = 'finished';
+      gd.winnerCarIdx = 1 - PLAYER_CAR_IDX;
+      return;
     }
   }
   if (ambers >= TREE_AMBER_COUNT && gd.treeGreenAtS === 0) {
@@ -90,16 +97,23 @@ function tickTree(gd, balance, dt) {
 }
 
 function tickLaunching(gd, balance, dt) {
-  // Player & opponent each compute RT once when SHIFT goes from held->released
+  // AI: release SHIFT after rt elapses
+  const aiRt = gd._aiPlan.rt;
+  if (gd.raceTimeS - gd.treeGreenAtS >= aiRt && gd.inputShift[1] === 1) {
+    gd.inputShift[1] = 0;
+  }
+  // Record RT for any car that has released
   for (let i = 0; i < NUM_CARS; i++) {
     if (gd.rtS[i] === 0 && !gd.inputShift[i]) {
       gd.rtS[i] = Math.max(0, gd.raceTimeS - gd.treeGreenAtS);
     }
   }
   for (let i = 0; i < NUM_CARS; i++) revToward(gd, balance, i, dt);
-  if (gd.rtS[PLAYER_CAR_IDX] > 0) {
+  const allLaunched = gd.rtS[0] > 0 && gd.rtS[1] > 0;
+  if (allLaunched || (gd.raceTimeS - gd.treeGreenAtS) > 1.5) {
     gd.raceState = 'racing';
     gd.racingStartS = gd.raceTimeS;
+    gd.inputGas[1] = 1; // AI keeps gas held throughout race
   }
 }
 
@@ -117,6 +131,14 @@ function handleShiftTap(gd, balance, i) {
 }
 
 function tickRacing(gd, balance, dt) {
+  ensureAiPlan(gd, balance);
+  // AI shift logic — synthesize an edge tap when RPM crosses target
+  if (!gd.finished[1] && !gd.blown[1] && gd.gear[1] < 4) {
+    const targetRpm = gd._aiPlan.shiftAtRpm[gd.gear[1] - 1];
+    if (gd.rpm[1] >= targetRpm) {
+      handleShiftTap(gd, balance, 1);
+    }
+  }
   // Process shift taps (consume the edge flag)
   for (let i = 0; i < NUM_CARS; i++) {
     if (gd.inputShiftPressEdge[i]) {
