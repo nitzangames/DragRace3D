@@ -119,3 +119,13 @@ html, body {
 @media (hover: none) and (pointer: coarse) {
   .btn-key { display: none; }
 }
+
+.btn-secondary {
+  font-size: 32px; font-weight: 600; padding: 14px 40px; margin-top: 14px;
+  background: transparent; border: 2px solid #888; color: #fff; border-radius: 12px;
+  cursor: pointer;
+  font-family: system-ui;
+  touch-action: manipulation;
+}
+.btn-secondary:active { background: #444; }
+.btn-secondary.hidden, .btn-primary.hidden { display: none; }

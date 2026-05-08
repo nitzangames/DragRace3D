@@ -7,6 +7,8 @@ import { buildRaceScene, renderFrame } from './renderer3d.js';
 import { createChaseCamera, updateChaseCamera } from './camera3d.js';
 import { buildTachSVG } from './tach.js';
 import { resetEffects, updateEffects } from './effects.js';
+import { loadCareer } from './save.js';
+import { newCareer } from './career.js';
 
 const canvas = document.getElementById('game-canvas');
 const T = window.THREE;
@@ -43,16 +45,47 @@ function startRace() {
   tachUpdater = buildTachSVG(tachContainer, balance.cars[0].redlineRpm, GREEN_BAND_RPM);
 }
 
-document.getElementById('btn-start').addEventListener('click', e => {
-  // Blur so Spacebar doesn't reactivate the button (which would re-trigger
-  // startRace → resetRace every frame Space is held).
-  e.currentTarget.blur();
-  startRace();
-});
 document.getElementById('version-text').textContent = VERSION;
 
 // Initial input wiring needs gameData reference; must be after gameData allocated.
 initInput(gameData);
+
+let careerState = null;
+
+async function initTitleButtons() {
+  const continueBtn = document.getElementById('btn-continue-career');
+  const newBtn      = document.getElementById('btn-new-career');
+  const quickBtn    = document.getElementById('btn-quick-race');
+  const garageBtn   = document.getElementById('btn-garage');
+
+  // Show CONTINUE only if a save exists
+  const existing = await loadCareer();
+  if (existing) {
+    careerState = existing;
+    continueBtn.classList.remove('hidden');
+  }
+
+  newBtn.addEventListener('click', e => { e.currentTarget.blur(); onNewCareer(); });
+  continueBtn.addEventListener('click', e => { e.currentTarget.blur(); onContinueCareer(); });
+  quickBtn.addEventListener('click', e => { e.currentTarget.blur(); onQuickRace(); });
+  garageBtn.addEventListener('click', e => { e.currentTarget.blur(); onGarage(); });
+}
+
+function onNewCareer() {
+  careerState = newCareer();
+  console.log('NEW CAREER (todo: car-pick screen)');
+}
+function onContinueCareer() {
+  console.log('CONTINUE (todo: career-home screen)');
+}
+function onQuickRace() {
+  console.log('QUICK RACE (todo: class-pick → race)');
+}
+function onGarage() {
+  console.log('GARAGE (todo: garage screen)');
+}
+
+initTitleButtons();
 
 function loop(now) {
   // Battery: respect platform pause
