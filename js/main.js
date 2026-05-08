@@ -311,9 +311,10 @@ function loop(now) {
     updateEffects(gameData, dt);
     updateChaseCamera(camera, gameData);
     renderFrame(renderer, scene, camera, cars, env, gameData);
-    // Results screen appears the moment the PLAYER is done (finished or
-    // blown). Opponent may still be racing — their ET updates live below.
-    const playerDone = gameData.finished[PLAYER_CAR_IDX] || gameData.blown[PLAYER_CAR_IDX];
+    // Results screen appears the moment the PLAYER is done (finished, blown,
+    // or jump-started). Opponent may still be racing — their ET updates live
+    // below.
+    const playerDone = gameData.finished[PLAYER_CAR_IDX] || gameData.blown[PLAYER_CAR_IDX] || gameData.jumped[PLAYER_CAR_IDX];
     if (playerDone && !document.getElementById('screen-results')) {
       showResults();
     } else if (playerDone && document.getElementById('screen-results')) {
@@ -404,20 +405,22 @@ function showResults() {
   // Decide winner at the moment the player is done. If player crossed first,
   // they win — AI's eventual ET can only be higher (slower across the line).
   // If player blew, AI wins (they're still racing or already crossed).
+  // Jump-start: tickTree already set winnerCarIdx = opponent — honor that.
+  const pJumped = gameData.jumped[PLAYER_CAR_IDX] === 1;
   const pFin = gameData.finished[PLAYER_CAR_IDX];
   const pBlown = gameData.blown[PLAYER_CAR_IDX];
   const aFin = gameData.finished[1];
   let winnerIdx;
-  if (pBlown && gameData.blown[1]) winnerIdx = -1;
+  if (pJumped) winnerIdx = gameData.winnerCarIdx;  // already 1-PLAYER_CAR_IDX
+  else if (pBlown && gameData.blown[1]) winnerIdx = -1;
   else if (pBlown) winnerIdx = 1;
   else if (pFin && aFin) winnerIdx = gameData.finishTimeS[PLAYER_CAR_IDX] < gameData.finishTimeS[1] ? PLAYER_CAR_IDX : 1;
   else winnerIdx = PLAYER_CAR_IDX; // player crossed first, AI still racing
   gameData.winnerCarIdx = winnerIdx;
 
   const won = winnerIdx === PLAYER_CAR_IDX;
-  const jumped = gameData.jumped[PLAYER_CAR_IDX] === 1;
   document.getElementById('res-headline').textContent =
-    jumped ? 'JUMPED START' : pBlown ? 'ENGINE BLOWN' : (won ? 'YOU WIN' : 'YOU LOSE');
+    pJumped ? 'JUMPED START' : pBlown ? 'ENGINE BLOWN' : (won ? 'YOU WIN' : 'YOU LOSE');
   document.getElementById('res-rt').textContent =
     `RT: ${gameData.rtS[PLAYER_CAR_IDX].toFixed(3)}s`;
   refreshOpponentResult();
