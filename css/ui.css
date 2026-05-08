@@ -36,6 +36,16 @@ html, body {
 }
 #ui .screen.hidden { display: none; }
 .game-title { font-size: 96px; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 48px; }
+
+/* Title-screen menu: every button is the same width regardless of primary/secondary
+ * variant. Group of related navigation choices should look uniform. */
+#screen-title .btn-primary,
+#screen-title .btn-secondary {
+  width: 420px;
+  max-width: 85vw;
+  box-sizing: border-box;
+  text-align: center;
+}
 .btn-primary {
   font-size: 44px; font-weight: 700; padding: 18px 56px;
   background: #d65a3a; border: 3px solid #ff8a5a; color: #fff; border-radius: 14px;
