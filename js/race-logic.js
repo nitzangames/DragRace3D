@@ -207,16 +207,15 @@ function tickRacing(gd, balance, dt) {
       gd.finishTimeS[i] = gd.raceTimeS - gd.treeGreenAtS;
     }
   }
-  // End the race the moment a car crosses the finish line (no need to wait
-  // for the opponent — first to cross wins). Also end if both cars are
-  // blown.
-  let anyFinished = false;
-  let allBlown = true;
+  // Race state stays 'racing' until BOTH cars are done. The player-side UX
+  // (immediate results when player crosses; opponent ET keeps updating until
+  // they finish) is handled in main.js by watching gd.finished[player]
+  // independently of raceState.
+  let allDone = true;
   for (let i = 0; i < NUM_CARS; i++) {
-    if (gd.finished[i]) anyFinished = true;
-    if (!gd.blown[i]) allBlown = false;
+    if (!gd.finished[i] && !gd.blown[i]) { allDone = false; break; }
   }
-  if (anyFinished || allBlown) {
+  if (allDone) {
     gd.raceState = 'finished';
     gd.winnerCarIdx = pickWinner(gd);
   }

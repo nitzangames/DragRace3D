@@ -134,9 +134,7 @@ test('full race: deterministic, both cars finish, winner determined', () => {
     t += FIXED_DT;
   }
   assert.equal(gd.raceState, 'finished');
-  // Race ends as soon as the FIRST car crosses — only one car needs to have
-  // finished. The other may still be racing.
-  assert.ok(gd.finished[0] || gd.finished[1] || gd.blown[0] || gd.blown[1],
-    'at least one car should have finished/blown');
+  assert.ok(gd.finished[0] || gd.blown[0], 'player race should resolve');
+  assert.ok(gd.finished[1] || gd.blown[1], 'opponent race should resolve');
   assert.ok(gd.winnerCarIdx === 0 || gd.winnerCarIdx === 1, 'a winner should be set');
 });

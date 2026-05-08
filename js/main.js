@@ -311,8 +311,13 @@ function loop(now) {
     updateEffects(gameData, dt);
     updateChaseCamera(camera, gameData);
     renderFrame(renderer, scene, camera, cars, env, gameData);
-    if (gameData.raceState === 'finished' && !document.getElementById('screen-results')) {
+    // Results screen appears the moment the PLAYER is done (finished or
+    // blown). Opponent may still be racing — their ET updates live below.
+    const playerDone = gameData.finished[PLAYER_CAR_IDX] || gameData.blown[PLAYER_CAR_IDX];
+    if (playerDone && !document.getElementById('screen-results')) {
       showResults();
+    } else if (playerDone && document.getElementById('screen-results')) {
+      refreshOpponentResult();
     }
   }
   requestAnimationFrame(loop);
@@ -346,6 +351,18 @@ function updateButtonHints(gd) {
   if (shiftHintEl.textContent !== leftHint) shiftHintEl.textContent = leftHint;
   shiftHintEl.classList.toggle('flash', leftFlash);
   if (gasHintEl.textContent !== rightHint) gasHintEl.textContent = rightHint;
+}
+
+/** Update the ET line in the results card. Called per-frame after results
+ *  are shown so the opponent's ET fills in once they cross. */
+function refreshOpponentResult() {
+  const detail = document.getElementById('res-detail');
+  if (!detail) return;
+  const pFinTime = gameData.finished[PLAYER_CAR_IDX] ? gameData.finishTimeS[PLAYER_CAR_IDX].toFixed(3) + 's'
+    : gameData.blown[PLAYER_CAR_IDX] ? 'BLOWN' : '—';
+  const aFinTime = gameData.finished[1] ? gameData.finishTimeS[1].toFixed(3) + 's'
+    : gameData.blown[1] ? 'BLOWN' : 'racing…';
+  detail.textContent = `Your ET: ${pFinTime}   Opponent: ${aFinTime}`;
 }
 
 function showResults() {
@@ -384,16 +401,26 @@ function showResults() {
     });
   }
   show('screen-results');
-  const won = gameData.winnerCarIdx === PLAYER_CAR_IDX;
+  // Decide winner at the moment the player is done. If player crossed first,
+  // they win — AI's eventual ET can only be higher (slower across the line).
+  // If player blew, AI wins (they're still racing or already crossed).
+  const pFin = gameData.finished[PLAYER_CAR_IDX];
+  const pBlown = gameData.blown[PLAYER_CAR_IDX];
+  const aFin = gameData.finished[1];
+  let winnerIdx;
+  if (pBlown && gameData.blown[1]) winnerIdx = -1;
+  else if (pBlown) winnerIdx = 1;
+  else if (pFin && aFin) winnerIdx = gameData.finishTimeS[PLAYER_CAR_IDX] < gameData.finishTimeS[1] ? PLAYER_CAR_IDX : 1;
+  else winnerIdx = PLAYER_CAR_IDX; // player crossed first, AI still racing
+  gameData.winnerCarIdx = winnerIdx;
+
+  const won = winnerIdx === PLAYER_CAR_IDX;
   const jumped = gameData.jumped[PLAYER_CAR_IDX] === 1;
   document.getElementById('res-headline').textContent =
-    jumped ? 'JUMPED START' : (won ? 'YOU WIN' : 'YOU LOSE');
-  const playerET = gameData.finished[PLAYER_CAR_IDX] ? gameData.finishTimeS[PLAYER_CAR_IDX] : null;
-  const oppET = gameData.finished[1] ? gameData.finishTimeS[1] : null;
-  document.getElementById('res-detail').textContent =
-    `Your ET: ${playerET == null ? '—' : playerET.toFixed(3) + 's'}   Opponent: ${oppET == null ? '—' : oppET.toFixed(3) + 's'}`;
+    jumped ? 'JUMPED START' : pBlown ? 'ENGINE BLOWN' : (won ? 'YOU WIN' : 'YOU LOSE');
   document.getElementById('res-rt').textContent =
     `RT: ${gameData.rtS[PLAYER_CAR_IDX].toFixed(3)}s`;
+  refreshOpponentResult();
 
   // Race telemetry — log everything that affects who won so it's diagnosable
   // when something feels off ("AI keeps beating me even with the same car").
