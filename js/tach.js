@@ -127,19 +127,16 @@ export function buildTachSVG(parentEl, redline, greenBand) {
   svg.appendChild(centerLabel);
 
   // --- Needle (long, red, full diameter — tip and tail both visible) ---
-  // Tip goes to (r - 22) from center; tail extends opposite direction.
-  // Stroke is thick enough to read at any angle on a 540px-wide phone screen.
+  // We update x1/y1/x2/y2 directly each frame instead of using a rotation
+  // transform. SVG's `transform="rotate(...)"` interacts with browser CSS
+  // transform-origin in surprising ways for <line> elements; computing the
+  // endpoints in viewBox coordinates is unambiguous and easier to reason about.
   const needleTip  = r - 22;
   const needleTail = 55;
   const needle = document.createElementNS(SVG_NS, 'line');
-  needle.setAttribute('x1', cx);
-  needle.setAttribute('y1', cy + needleTail);   // tail end (behind center)
-  needle.setAttribute('x2', cx);
-  needle.setAttribute('y2', cy - needleTip);    // tip end (in front)
   needle.setAttribute('stroke', '#e8102a');
   needle.setAttribute('stroke-width', 9);
   needle.setAttribute('stroke-linecap', 'round');
-  needle.setAttribute('transform-origin', `${cx} ${cy}`);
   svg.appendChild(needle);
 
   // Hub cap
@@ -149,10 +146,27 @@ export function buildTachSVG(parentEl, redline, greenBand) {
   hub.setAttribute('stroke', '#e8102a'); hub.setAttribute('stroke-width', 3);
   svg.appendChild(hub);
 
+  // Initialize needle to 0-RPM position
+  setNeedle(0);
+  function setNeedle(rpm) {
+    const deg = Math.max(0, Math.min(270, (rpm / maxRpm) * 270));
+    // polar() puts deg=0 at lower-left (7-8 o'clock) and deg=270 at lower-right
+    // (4-5 o'clock); the needle tip should sit at the same dial position.
+    const rad = (deg + 135) * Math.PI / 180;
+    const cosA = Math.cos(rad), sinA = Math.sin(rad);
+    const tipX  = cx + cosA * needleTip;
+    const tipY  = cy + sinA * needleTip;
+    const tailX = cx - cosA * needleTail;
+    const tailY = cy - sinA * needleTail;
+    needle.setAttribute('x1', tailX.toFixed(1));
+    needle.setAttribute('y1', tailY.toFixed(1));
+    needle.setAttribute('x2', tipX.toFixed(1));
+    needle.setAttribute('y2', tipY.toFixed(1));
+  }
+
   return {
     update(rpm, gear) {
-      const deg = Math.max(0, Math.min(270, (rpm / maxRpm) * 270));
-      needle.setAttribute('transform', `rotate(${-135 + deg} ${cx} ${cy})`);
+      setNeedle(rpm);
     },
   };
 }
