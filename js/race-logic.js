@@ -7,6 +7,8 @@ import { blowThresholdReached } from './shift-scoring.js';
 
 const INTRO_DURATION_S = 2.0;
 const STAGING_HOLD_DURATION_S = 0.5; // player must hold both for 0.5s before tree
+const G_MS2 = G_MS2;                  // gravitational acceleration (m/s^2), used for normal-force calcs
+const LIMITER_OVERSHOOT = 1.02;      // hard cap sits 2% above redline so cars can spend a brief moment at the limiter without instantly blowing (the BLOW_THRESHOLD_S timer governs blow-up)
 
 /**
  * Single fixed-timestep tick. Mutates gameData in place.
@@ -140,8 +142,11 @@ function stepCar(gd, balance, i, dt) {
   const targetRpm = Math.max(wheelTargetRpm, gasTarget);
   gd.rpm[i] += (targetRpm - gd.rpm[i]) * Math.min(1, car.engineResponse * dt);
   if (gd.rpm[i] < car.idleRpm) gd.rpm[i] = car.idleRpm;
-  const limiterRpm = car.redlineRpm * 1.02;
+  const limiterRpm = car.redlineRpm * LIMITER_OVERSHOOT;
   if (gd.rpm[i] > limiterRpm) gd.rpm[i] = limiterRpm;
+  // Reset on any sub-redline tick: in current physics RPM moves smoothly via lerp
+  // so this won't oscillate, but if balance ever introduces a model that bounces
+  // in/out of redline rapidly, this could mask blow-ups — revisit then.
   if (gd.rpm[i] >= car.redlineRpm) gd.timeAtLimiterS[i] += dt;
   else gd.timeAtLimiterS[i] = 0;
   if (blowThresholdReached(gd.timeAtLimiterS[i], BLOW_THRESHOLD_S)) {
@@ -150,7 +155,7 @@ function stepCar(gd, balance, i, dt) {
   }
   const torque = torqueAt(car, gd.rpm[i]);
   let force = torque * car.gearRatios[gd.gear[i] - 1] * car.finalDrive / car.wheelRadius;
-  const fMax = car.grip * car.mass * 9.81;
+  const fMax = car.grip * car.mass * G_MS2;
   if (force > fMax) {
     gd.slip[i] = 1;
     force = fMax;
@@ -158,7 +163,7 @@ function stepCar(gd, balance, i, dt) {
     gd.slip[i] = 0;
   }
   force -= car.dragCoef * gd.velMs[i] * gd.velMs[i];
-  force -= car.rollingResistance * car.mass * 9.81;
+  force -= car.rollingResistance * car.mass * G_MS2;
   gd.velMs[i] += (force / car.mass) * dt;
   if (gd.velMs[i] < 0) gd.velMs[i] = 0;
   gd.posZ[i] -= gd.velMs[i] * dt;  // -Z is forward
@@ -170,5 +175,6 @@ function torqueAt(car, rpm) {
 }
 
 function tickCoast(gd, balance, dt) {
-  // Stub — same as racing for now until physics added.
+  // Stub — Plan 1 reaches 'finished' from racing directly; coast may be used in
+  // Plan 2/3 for parachute / decel between finish line and full stop.
 }
