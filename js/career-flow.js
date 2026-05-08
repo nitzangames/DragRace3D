@@ -79,7 +79,22 @@ export function buildRaceBalance(careerState, seed) {
   const opponentWithParts = applyPartsToCar(opponentBase, opponentParts, balance.parts);
   const opponentFinal = applyTuningToCar(opponentWithParts, balance.defaultTune(opponentBase));
 
-  return { ...balance, cars: [playerFinal, opponentFinal] };
+  // Early-career AI handicap: slower reaction time and earlier (suboptimal)
+  // shift point. This decays to zero by classWins=5. Combined with the parts
+  // scaling above, it makes the first 5 races progressively harder rather
+  // than uniformly hard.
+  const handicapTaper = Math.max(0, (5 - careerState.classWins) / 5);
+  const handicappedAi = {
+    ...balance.ai,
+    // Race 1: AI rtMean ≈ 0.65s (vs typical human ~0.30-0.45s) → big launch
+    // disadvantage. Tapers to 0.32 by classWins=5.
+    rtMean: balance.ai.rtMean + 0.35 * handicapTaper,
+    // Race 1: AI shifts ~1700 RPM before redline (way below optimal). Tapers
+    // to ~250 by classWins=5.
+    shiftBandSlackRpm: balance.ai.shiftBandSlackRpm + 1500 * handicapTaper,
+  };
+
+  return { ...balance, cars: [playerFinal, opponentFinal], ai: handicappedAi };
 }
 
 /**

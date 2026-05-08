@@ -11,10 +11,7 @@
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** Re-build the tach SVG inside the given parent element. */
-export function buildTachSVG(parentEl, redline, greenBand, shiftRpm) {
-  // shiftRpm = center of the green "PRESS!" zone. Defaults to (redline - greenBand/2)
-  // for backwards compat with callers that don't pass it.
-  if (shiftRpm == null) shiftRpm = redline - greenBand / 2;
+export function buildTachSVG(parentEl, redline, greenBand) {
   parentEl.innerHTML = '';
   const W = 400, H = 400, cx = 200, cy = 200, r = 160;
   const svg = document.createElementNS(SVG_NS, 'svg');
@@ -62,9 +59,7 @@ export function buildTachSVG(parentEl, redline, greenBand, shiftRpm) {
 
   const maxRpm = redline * 1.1;
   const redDeg  = (redline / maxRpm) * 270;            // degree where redline falls
-  // Green zone is centered on shiftRpm with `greenBand` total width.
-  const greenStartDeg = (Math.max(0, shiftRpm - greenBand / 2) / maxRpm) * 270;
-  const greenEndDeg   = (Math.min(redline, shiftRpm + greenBand / 2) / maxRpm) * 270;
+  const greenStartDeg = ((redline - greenBand) / maxRpm) * 270;
 
   // Track background arc (full sweep, dark)
   appendArc(arcPath(0, 270, r - 10), '#1a1d22', 20);
@@ -72,8 +67,8 @@ export function buildTachSVG(parentEl, redline, greenBand, shiftRpm) {
   // Red zone arc (past redline to max = 270°)
   appendArc(arcPath(redDeg, 270, r - 10), '#ff2a18', 20);
 
-  // Thin green shift-cue arc centered on the optimal shift RPM
-  appendArc(arcPath(greenStartDeg, greenEndDeg, r - 10), '#22ee48', 6);
+  // Thin green shift-cue arc just before redline (classic drag-racer cue)
+  appendArc(arcPath(greenStartDeg, redDeg, r - 10), '#22ee48', 6);
 
   // --- Major + minor ticks and numeric labels ---
   // We show numeric labels 0..7 (these are × 1000 RPM markers)
