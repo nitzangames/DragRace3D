@@ -8,7 +8,7 @@ import { LANE_OFFSET_X, PLAYER_CAR_IDX } from './constants.js';
 
 export function createChaseCamera(canvas) {
   const T = window.THREE;
-  const cam = new T.PerspectiveCamera(58, canvas.clientWidth / canvas.clientHeight, 0.1, 800);
+  const cam = new T.PerspectiveCamera(65, canvas.clientWidth / canvas.clientHeight, 0.1, 800);
   return cam;
 }
 
@@ -21,6 +21,6 @@ export function updateChaseCamera(cam, gameData) {
   // right side of view, opponent (in the -X lane) on the left.
   cam.position.set(LANE_OFFSET_X + 0.5, 2.4, playerZ + 6.5);
   if (!cam.userData._lookAt) cam.userData._lookAt = new T.Vector3();
-  cam.userData._lookAt.set(-0.8, 1.0, playerZ - 18);
+  cam.userData._lookAt.set(-1.5, 1.0, playerZ - 18);
   cam.lookAt(cam.userData._lookAt);
 }
