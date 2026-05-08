@@ -277,6 +277,9 @@ document.getElementById('btn-cardetail-set-current').addEventListener('click', o
 async function onNextRace() {
   quickRaceMode = false;  // career race
   raceBalance = buildRaceBalance(careerState, Date.now() | 0);
+  // Expose for in-browser debugging — handy to verify AI handicap on the fly.
+  if (typeof window !== 'undefined') window.__dr3d_raceBalance = raceBalance;
+  console.log(`[dr3d] race start | classWins=${careerState.classWins} | AI rtMean=${raceBalance.ai.rtMean.toFixed(2)}s | AI shiftSlack=${raceBalance.ai.shiftBandSlackRpm.toFixed(0)}rpm`);
   startRace();
 }
 
@@ -308,8 +311,14 @@ function loop(now) {
     updateEffects(gameData, dt);
     updateChaseCamera(camera, gameData);
     renderFrame(renderer, scene, camera, cars, env, gameData);
-    if (gameData.raceState === 'finished' && !document.getElementById('screen-results')) {
+    // Results screen appears the moment the PLAYER is done (finished, blown,
+    // or jump-started). Opponent may still be racing — their ET updates live
+    // below.
+    const playerDone = gameData.finished[PLAYER_CAR_IDX] || gameData.blown[PLAYER_CAR_IDX] || gameData.jumped[PLAYER_CAR_IDX];
+    if (playerDone && !document.getElementById('screen-results')) {
       showResults();
+    } else if (playerDone && document.getElementById('screen-results')) {
+      refreshOpponentResult();
     }
   }
   requestAnimationFrame(loop);
@@ -345,6 +354,18 @@ function updateButtonHints(gd) {
   if (gasHintEl.textContent !== rightHint) gasHintEl.textContent = rightHint;
 }
 
+/** Update the ET line in the results card. Called per-frame after results
+ *  are shown so the opponent's ET fills in once they cross. */
+function refreshOpponentResult() {
+  const detail = document.getElementById('res-detail');
+  if (!detail) return;
+  const pFinTime = gameData.finished[PLAYER_CAR_IDX] ? gameData.finishTimeS[PLAYER_CAR_IDX].toFixed(3) + 's'
+    : gameData.blown[PLAYER_CAR_IDX] ? 'BLOWN' : '—';
+  const aFinTime = gameData.finished[1] ? gameData.finishTimeS[1].toFixed(3) + 's'
+    : gameData.blown[1] ? 'BLOWN' : 'racing…';
+  detail.textContent = `Your ET: ${pFinTime}   Opponent: ${aFinTime}`;
+}
+
 function showResults() {
   let el = document.getElementById('screen-results');
   if (!el) {
@@ -353,30 +374,76 @@ function showResults() {
     el.innerHTML = `
       <h2 id="res-headline" style="font-size:96px;margin-bottom:32px"></h2>
       <div id="res-detail" style="font-size:32px;margin-bottom:16px"></div>
-      <div id="res-rt" style="font-size:24px;opacity:0.8;margin-bottom:32px"></div>
+      <div id="res-rt" style="font-size:24px;opacity:0.8;margin-bottom:16px"></div>
+      <div id="res-gold" style="font-size:28px;color:#ffd14a;font-weight:700;margin-bottom:24px;min-height:34px"></div>
       <button id="btn-rerun" class="btn-primary">RACE AGAIN</button>
+      <button id="btn-results-garage" class="btn-secondary">GARAGE</button>
     `;
     document.getElementById('ui').appendChild(el);
     document.getElementById('btn-rerun').addEventListener('click', () => {
+      // Stop the rAF race loop so it doesn't re-trigger showResults() on the
+      // next frame (raceState is still 'finished'). startRace() flips it back
+      // on; showCareerHome() leaves it off until NEXT RACE.
+      started = false;
       el.remove();
       if (careerState && !quickRaceMode) {
-        showCareerHome();
+        // Take user straight to a new race (their natural expectation).
+        onNextRace();
       } else {
         startRace();  // quick race fallback / no career
       }
     });
+    document.getElementById('btn-results-garage').addEventListener('click', () => {
+      started = false;
+      el.remove();
+      if (!careerState) careerState = newCareer();
+      renderGarage(careerState, onGarageCarPick);
+      show('screen-garage');
+    });
   }
   show('screen-results');
-  const won = gameData.winnerCarIdx === PLAYER_CAR_IDX;
-  const jumped = gameData.jumped[PLAYER_CAR_IDX] === 1;
+  // Decide winner at the moment the player is done. If player crossed first,
+  // they win — AI's eventual ET can only be higher (slower across the line).
+  // If player blew, AI wins (they're still racing or already crossed).
+  // Jump-start: tickTree already set winnerCarIdx = opponent — honor that.
+  const pJumped = gameData.jumped[PLAYER_CAR_IDX] === 1;
+  const pFin = gameData.finished[PLAYER_CAR_IDX];
+  const pBlown = gameData.blown[PLAYER_CAR_IDX];
+  const aFin = gameData.finished[1];
+  let winnerIdx;
+  if (pJumped) winnerIdx = gameData.winnerCarIdx;  // already 1-PLAYER_CAR_IDX
+  else if (pBlown && gameData.blown[1]) winnerIdx = -1;
+  else if (pBlown) winnerIdx = 1;
+  else if (pFin && aFin) winnerIdx = gameData.finishTimeS[PLAYER_CAR_IDX] < gameData.finishTimeS[1] ? PLAYER_CAR_IDX : 1;
+  else winnerIdx = PLAYER_CAR_IDX; // player crossed first, AI still racing
+  gameData.winnerCarIdx = winnerIdx;
+
+  const won = winnerIdx === PLAYER_CAR_IDX;
   document.getElementById('res-headline').textContent =
-    jumped ? 'JUMPED START' : (won ? 'YOU WIN' : 'YOU LOSE');
-  const playerET = gameData.finished[PLAYER_CAR_IDX] ? gameData.finishTimeS[PLAYER_CAR_IDX] : null;
-  const oppET = gameData.finished[1] ? gameData.finishTimeS[1] : null;
-  document.getElementById('res-detail').textContent =
-    `Your ET: ${playerET == null ? '—' : playerET.toFixed(3) + 's'}   Opponent: ${oppET == null ? '—' : oppET.toFixed(3) + 's'}`;
+    pJumped ? 'JUMPED START' : pBlown ? 'ENGINE BLOWN' : (won ? 'YOU WIN' : 'YOU LOSE');
   document.getElementById('res-rt').textContent =
     `RT: ${gameData.rtS[PLAYER_CAR_IDX].toFixed(3)}s`;
+  refreshOpponentResult();
+
+  // Race telemetry — log everything that affects who won so it's diagnosable
+  // when something feels off ("AI keeps beating me even with the same car").
+  console.group(`[dr3d] race summary (${gameData.winnerCarIdx === PLAYER_CAR_IDX ? 'YOU WIN' : 'YOU LOSE'})`);
+  console.log('Player:',
+    `RT ${gameData.rtS[PLAYER_CAR_IDX].toFixed(3)}s`,
+    `· ET ${gameData.finished[PLAYER_CAR_IDX] ? gameData.finishTimeS[PLAYER_CAR_IDX].toFixed(3)+'s' : '—'}`,
+    `· final v ${gameData.velMs[PLAYER_CAR_IDX].toFixed(1)} m/s`,
+    `· final gear ${gameData.gear[PLAYER_CAR_IDX]}`,
+    gameData.blown[PLAYER_CAR_IDX] ? '· BLOWN' : '');
+  console.log('Player shifts:', gameData._shiftLog?.[0] ?? []);
+  console.log('AI:',
+    `RT ${gameData.rtS[1].toFixed(3)}s`,
+    `· ET ${gameData.finished[1] ? gameData.finishTimeS[1].toFixed(3)+'s' : '—'}`,
+    `· final v ${gameData.velMs[1].toFixed(1)} m/s`,
+    `· final gear ${gameData.gear[1]}`,
+    gameData.blown[1] ? '· BLOWN' : '');
+  console.log('AI shifts:', gameData._shiftLog?.[1] ?? []);
+  console.log('AI plan:', gameData._aiPlan);
+  console.groupEnd();
 
   // Record career result if we're in career mode (not quick race)
   recordCareerResult();
@@ -397,10 +464,8 @@ function showResults() {
       careerState = recordLoss(careerState, { gold: reward });
     }
     await saveCareer(careerState);
-    // Append gold delta to results screen
-    const goldEl = document.createElement('div');
-    goldEl.style.cssText = 'font-size:24px; color:#ffd14a; margin-top:12px;';
-    goldEl.textContent = `+${reward}g  · Total: ${careerState.gold.toLocaleString()}g`;
-    document.getElementById('screen-results').appendChild(goldEl);
+    // Write gold delta into the placeholder above the buttons
+    document.getElementById('res-gold').textContent =
+      `+${reward}g  · Total: ${careerState.gold.toLocaleString()}g`;
   }
 }

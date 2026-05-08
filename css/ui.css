@@ -36,6 +36,20 @@ html, body {
 }
 #ui .screen.hidden { display: none; }
 .game-title { font-size: 96px; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 48px; }
+
+/* Vertically stacked menu buttons inside a `.screen` container all share the
+ * same width regardless of primary/secondary variant. Group of related nav
+ * choices should look uniform per platform GAME_DEV_NOTES "Buttons of the
+ * same type must be the same size". The screen flex centers them; we just
+ * pin the width with a viewport cap. Excludes race-button (HUD bottom-edge
+ * gas/shift) and tab buttons (horizontal). */
+#ui .screen .btn-primary,
+#ui .screen .btn-secondary {
+  width: 420px;
+  max-width: 85vw;
+  box-sizing: border-box;
+  text-align: center;
+}
 .btn-primary {
   font-size: 44px; font-weight: 700; padding: 18px 56px;
   background: #d65a3a; border: 3px solid #ff8a5a; color: #fff; border-radius: 14px;
@@ -65,9 +79,9 @@ html, body {
 
 #tach-container {
   position: absolute;
-  top: 12%;
+  top: 4%;
   left: 50%; transform: translateX(-50%);
-  width: 65%; aspect-ratio: 1/1;
+  width: 55%; aspect-ratio: 1/1;
   pointer-events: none;
 }
 
@@ -193,10 +207,10 @@ html, body {
 }
 .tier-btn .t-name { font-weight: 700; }
 .tier-btn .t-price { color: #ffd14a; margin-top: 4px; font-size: 13px; }
-.tier-btn.installed { color: #fff; border-color: #2aa050; background: #1a3520; }
-.tier-btn.owned    { color: #ddd; border-color: #2aa050; opacity: 0.5; }
-.tier-btn.buyable  { color: #fff; border-color: #ff8a5a; cursor: pointer; }
-.tier-btn.buyable:active { background: #2a2d33; }
+.tier-btn.installed { color: #fff; border-color: #4a9fe0; background: #18283a; }
+.tier-btn.owned    { color: #ddd; border-color: #4a9fe0; opacity: 0.5; }
+.tier-btn.buyable  { color: #fff; border-color: #2aa050; background: #1a3520; cursor: pointer; }
+.tier-btn.buyable:active { background: #2a4530; }
 .tier-btn.locked   { opacity: 0.4; }
 
 .tune-row { margin: 14px 0; }

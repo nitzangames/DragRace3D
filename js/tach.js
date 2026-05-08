@@ -67,7 +67,7 @@ export function buildTachSVG(parentEl, redline, greenBand) {
   // Red zone arc (past redline to max = 270°)
   appendArc(arcPath(redDeg, 270, r - 10), '#ff2a18', 20);
 
-  // Thin green shift-cue arc just before redline
+  // Thin green shift-cue arc just before redline (classic drag-racer cue)
   appendArc(arcPath(greenStartDeg, redDeg, r - 10), '#22ee48', 6);
 
   // --- Major + minor ticks and numeric labels ---

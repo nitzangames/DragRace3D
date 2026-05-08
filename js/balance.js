@@ -3,10 +3,14 @@
 
 const cars = [
   // Class E — Street (4 cars)
-  { id: 'e1', classIndex: 0, name: 'Civitas', archetype: 'sedan',  color1: 0x4d6dd6, color2: 0x2a3950, price: 1500,  mass: 1280, grip: 1.05, dragCoef: 0.40, rollingResistance: 0.013, redlineRpm: 6500, idleRpm: 850,  launchRpmMax: 5200, engineResponse: 7.5, gearRatios: [3.5, 2.2, 1.5, 1.0], finalDrive: 3.7,  wheelRadius: 0.32, torquePeakNm: 220, torquePeakRpm: 4500, torqueWidth: 1500 },
-  { id: 'e2', classIndex: 0, name: 'Hatch GT',  archetype: 'hatch',  color1: 0xe2c11a, color2: 0x222222, price: 1900,  mass: 1180, grip: 1.10, dragCoef: 0.39, rollingResistance: 0.012, redlineRpm: 6800, idleRpm: 900,  launchRpmMax: 5400, engineResponse: 8.0, gearRatios: [3.6, 2.1, 1.5, 1.0], finalDrive: 3.85, wheelRadius: 0.32, torquePeakNm: 260, torquePeakRpm: 4700, torqueWidth: 1500 },
-  { id: 'e3', classIndex: 0, name: 'Compact RS', archetype: 'hatch',  color1: 0xe04545, color2: 0x222222, price: 2300,  mass: 1200, grip: 1.12, dragCoef: 0.38, rollingResistance: 0.012, redlineRpm: 7000, idleRpm: 900,  launchRpmMax: 5600, engineResponse: 8.2, gearRatios: [3.5, 2.1, 1.5, 1.0], finalDrive: 3.85, wheelRadius: 0.32, torquePeakNm: 290, torquePeakRpm: 4900, torqueWidth: 1500 },
-  { id: 'e4', classIndex: 0, name: 'Sedan SE',  archetype: 'sedan',  color1: 0x4040a0, color2: 0x202050, price: 2700,  mass: 1330, grip: 1.05, dragCoef: 0.41, rollingResistance: 0.013, redlineRpm: 6200, idleRpm: 850,  launchRpmMax: 5000, engineResponse: 7.4, gearRatios: [3.4, 2.0, 1.4, 1.0], finalDrive: 3.6,  wheelRadius: 0.33, torquePeakNm: 320, torquePeakRpm: 4400, torqueWidth: 1500 },
+  // E-class tuning: keep wide gear-ratio spread (gear 4 ≈ 1.0 is needed for
+  // top speed without redlining), but widen the torque curve substantially so
+  // post-shift RPM stays in the power band regardless of where in the green
+  // zone the player shifts. Force drop on shift stays under ~15%.
+  { id: 'e1', classIndex: 0, name: 'Civitas', archetype: 'sedan',  color1: 0x4d6dd6, color2: 0x2a3950, price: 1500,  mass: 1280, grip: 1.05, dragCoef: 0.40, rollingResistance: 0.013, redlineRpm: 6500, idleRpm: 850,  launchRpmMax: 5200, engineResponse: 7.5, gearRatios: [3.5, 2.2, 1.5, 1.0], finalDrive: 3.7,  wheelRadius: 0.32, torquePeakNm: 220, torquePeakRpm: 4500, torqueWidth: 2200 },
+  { id: 'e2', classIndex: 0, name: 'Hatch GT',  archetype: 'hatch',  color1: 0xe2c11a, color2: 0x222222, price: 1900,  mass: 1180, grip: 1.10, dragCoef: 0.39, rollingResistance: 0.012, redlineRpm: 6800, idleRpm: 900,  launchRpmMax: 5400, engineResponse: 8.0, gearRatios: [3.6, 2.1, 1.5, 1.0], finalDrive: 3.85, wheelRadius: 0.32, torquePeakNm: 260, torquePeakRpm: 4700, torqueWidth: 2200 },
+  { id: 'e3', classIndex: 0, name: 'Compact RS', archetype: 'hatch',  color1: 0xe04545, color2: 0x222222, price: 2300,  mass: 1200, grip: 1.12, dragCoef: 0.38, rollingResistance: 0.012, redlineRpm: 7000, idleRpm: 900,  launchRpmMax: 5600, engineResponse: 8.2, gearRatios: [3.5, 2.1, 1.5, 1.0], finalDrive: 3.85, wheelRadius: 0.32, torquePeakNm: 290, torquePeakRpm: 4900, torqueWidth: 2200 },
+  { id: 'e4', classIndex: 0, name: 'Sedan SE',  archetype: 'sedan',  color1: 0x4040a0, color2: 0x202050, price: 2700,  mass: 1330, grip: 1.05, dragCoef: 0.41, rollingResistance: 0.013, redlineRpm: 6200, idleRpm: 850,  launchRpmMax: 5000, engineResponse: 7.4, gearRatios: [3.4, 2.0, 1.4, 1.0], finalDrive: 3.6,  wheelRadius: 0.33, torquePeakNm: 320, torquePeakRpm: 4400, torqueWidth: 2200 },
 
   // Class D — Modified (4)
   { id: 'd1', classIndex: 1, name: 'Hot Hatch R', archetype: 'hatch', color1: 0x18b8a0, color2: 0x222222, price: 4500,  mass: 1240, grip: 1.18, dragCoef: 0.37, rollingResistance: 0.012, redlineRpm: 7200, idleRpm: 900,  launchRpmMax: 5800, engineResponse: 8.5, gearRatios: [3.4, 2.1, 1.5, 1.0], finalDrive: 3.85, wheelRadius: 0.33, torquePeakNm: 360, torquePeakRpm: 5000, torqueWidth: 1600 },
@@ -42,35 +46,35 @@ const cars = [
 const parts = {
   engine: [
     { tier: 0, name: 'Stock',         price: 0,     torquePeakMul: 1.00, redlineDelta: 0 },
-    { tier: 1, name: 'Street Tune',   price: 1200,  torquePeakMul: 1.05, redlineDelta: 100 },
+    { tier: 1, name: 'Street Tune',   price: 100,   torquePeakMul: 1.05, redlineDelta: 100 },
     { tier: 2, name: 'Performance',   price: 5800,  torquePeakMul: 1.12, redlineDelta: 300 },
     { tier: 3, name: 'Built Block',   price: 18000, torquePeakMul: 1.22, redlineDelta: 600 },
     { tier: 4, name: 'Race Internals', price: 48000, torquePeakMul: 1.35, redlineDelta: 1000 },
   ],
   turbo: [
     { tier: 0, name: 'None',           price: 0,     torquePeakMul: 1.00, torqueWidthMul: 1.00, redlineDelta: 0 },
-    { tier: 1, name: 'Bolt-on Turbo',  price: 4500,  torquePeakMul: 1.10, torqueWidthMul: 1.05, redlineDelta: 0 },
+    { tier: 1, name: 'Bolt-on Turbo',  price: 100,   torquePeakMul: 1.10, torqueWidthMul: 1.05, redlineDelta: 0 },
     { tier: 2, name: 'Big Single',     price: 14000, torquePeakMul: 1.20, torqueWidthMul: 1.08, redlineDelta: 100 },
     { tier: 3, name: 'Twin Turbo',     price: 32000, torquePeakMul: 1.32, torqueWidthMul: 1.10, redlineDelta: 200 },
     { tier: 4, name: 'Quad Compound',  price: 80000, torquePeakMul: 1.50, torqueWidthMul: 1.15, redlineDelta: 300 },
   ],
   transmission: [
     { tier: 0, name: 'Stock',         price: 0,     engineResponseDelta: 0,   tunable: false },
-    { tier: 1, name: 'Short Shift',   price: 800,   engineResponseDelta: 0.3, tunable: false },
+    { tier: 1, name: 'Short Shift',   price: 100,   engineResponseDelta: 0.3, tunable: false },
     { tier: 2, name: 'Sequential',    price: 4200,  engineResponseDelta: 0.7, tunable: false },
     { tier: 3, name: 'Custom Ratios', price: 12000, engineResponseDelta: 1.0, tunable: true  },
     { tier: 4, name: 'Race Spec',     price: 30000, engineResponseDelta: 1.5, tunable: true  },
   ],
   tires: [
     { tier: 0, name: 'OEM',          price: 0,     gripDelta: 0.00 },
-    { tier: 1, name: 'Performance',  price: 600,   gripDelta: 0.05 },
+    { tier: 1, name: 'Performance',  price: 100,   gripDelta: 0.05 },
     { tier: 2, name: 'Sticky',       price: 2200,  gripDelta: 0.12 },
     { tier: 3, name: 'Drag Radials', price: 7000,  gripDelta: 0.22 },
     { tier: 4, name: 'Slicks',       price: 20000, gripDelta: 0.35 },
   ],
   weight: [
     { tier: 0, name: 'Stock',           price: 0,     massMul: 1.00 },
-    { tier: 1, name: 'Strip Interior',  price: 1500,  massMul: 0.95 },
+    { tier: 1, name: 'Strip Interior',  price: 100,   massMul: 0.95 },
     { tier: 2, name: 'Lightweight',     price: 6500,  massMul: 0.88 },
     { tier: 3, name: 'Carbon',          price: 22000, massMul: 0.78 },
   ],

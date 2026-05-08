@@ -52,7 +52,7 @@ test('race state: staging → tree begins when player presses both buttons', () 
 test('physics: car at full gas accelerates forward', () => {
   const gd = allocGameData(balance2);
   resetRace(gd, balance2, 1);
-  gd.raceState = 'racing';
+  gd.raceState = 'racing'; gd.rtS[0] = 0.30; gd.rtS[1] = 0.32;
   gd.gear[0] = 1; gd.gear[1] = 1;
   gd.rpm[0] = 5000; gd.rpm[1] = 5000;
   gd.inputGas[0] = 1; gd.inputGas[1] = 0;
@@ -66,7 +66,7 @@ test('physics: moving car in top gear continues to advance', () => {
   // problem). Validates that finish detection + force balance work.
   const gd = allocGameData(balance2);
   resetRace(gd, balance2, 1);
-  gd.raceState = 'racing';
+  gd.raceState = 'racing'; gd.rtS[0] = 0.30; gd.rtS[1] = 0.32;
   gd.gear[0] = 4; gd.gear[1] = 4;
   gd.velMs[0] = 30; gd.velMs[1] = 30;
   gd.rpm[0] = 5000; gd.rpm[1] = 5000;
@@ -83,9 +83,10 @@ test('physics: moving car in top gear continues to advance', () => {
 test('shift: tap shift in racing upshifts and drops RPM', () => {
   const gd = allocGameData(balance2);
   resetRace(gd, balance2, 1);
-  gd.raceState = 'racing';
+  gd.raceState = 'racing'; gd.rtS[0] = 0.30; gd.rtS[1] = 0.32;
   gd.gear[0] = 1;
   gd.rpm[0] = 6500;
+  gd.velMs[0] = 10;  // moving — required for the upshift to be honored
   gd.inputGas[0] = 1;
   gd.inputShiftPressEdge[0] = 1;
   tickRace(gd, balance2, FIXED_DT);
@@ -98,7 +99,7 @@ test('shift: tap shift in racing upshifts and drops RPM', () => {
 test('shift: tap shift in gear 4 does nothing', () => {
   const gd = allocGameData(balance2);
   resetRace(gd, balance2, 1);
-  gd.raceState = 'racing';
+  gd.raceState = 'racing'; gd.rtS[0] = 0.30; gd.rtS[1] = 0.32;
   gd.gear[0] = 4;
   gd.rpm[0] = 6500;
   gd.inputShiftPressEdge[0] = 1;

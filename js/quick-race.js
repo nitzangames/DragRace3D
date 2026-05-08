@@ -35,8 +35,10 @@ export function renderQuickRace(onPick) {
 
 export function buildQuickRaceBalance(playerCarId, seed) {
   const player = balance.cars.find(c => c.id === playerCarId);
-  const opponentCandidates = balance.cars.filter(c => c.classIndex === player.classIndex && c.id !== player.id);
-  const idx = ((seed >>> 0) * 2654435761) >>> 0;
-  const opponent = opponentCandidates[idx % opponentCandidates.length];
+  // Same car for both — pure skill match (RT + shift timing). Picking
+  // a different same-class opponent meant the player on the cheapest car
+  // raced one of the more expensive (objectively faster) siblings, which
+  // felt unfair.
+  const opponent = player;
   return { ...balance, cars: [player, opponent] };
 }
