@@ -104,6 +104,7 @@ function tickTree(gd, balance, dt) {
 }
 
 function tickLaunching(gd, balance, dt) {
+  ensureAiPlan(gd, balance);
   // AI: release SHIFT after rt elapses
   const aiRt = gd._aiPlan.rt;
   if (gd.raceTimeS - gd.treeGreenAtS >= aiRt && gd.inputShift[1] === 1) {
@@ -115,12 +116,30 @@ function tickLaunching(gd, balance, dt) {
       gd.rtS[i] = Math.max(0, gd.raceTimeS - gd.treeGreenAtS);
     }
   }
-  for (let i = 0; i < NUM_CARS; i++) revToward(gd, balance, i, dt);
-  const allLaunched = gd.rtS[0] > 0 && gd.rtS[1] > 0;
-  if (allLaunched || (gd.raceTimeS - gd.treeGreenAtS) > 1.5) {
+  // Per-car physics: launched cars (rtS > 0) get stepCar; unlaunched continue
+  // to rev. The faster reactor starts moving FIRST — that's the head-start
+  // earned by reaction time. Without this, both cars sat still until both
+  // released, throwing away the player's RT advantage.
+  for (let i = 0; i < NUM_CARS; i++) {
+    if (gd.rtS[i] > 0) {
+      stepCar(gd, balance, i, dt);
+    } else {
+      revToward(gd, balance, i, dt);
+    }
+  }
+  // Transition to 'racing' as soon as the player launches — chase camera and
+  // race-time HUD start at that moment for the player.
+  if (gd.rtS[PLAYER_CAR_IDX] > 0) {
     gd.raceState = 'racing';
-    gd.racingStartS = gd.raceTimeS;
+    // ET reference: tree-green light. Lower ET = won (RT included naturally).
+    gd.racingStartS = gd.treeGreenAtS;
     gd.inputGas[1] = 1; // AI keeps gas held throughout race
+  } else if ((gd.raceTimeS - gd.treeGreenAtS) > 2.0) {
+    // Safety timeout: auto-launch player if they haven't released after 2s.
+    gd.rtS[PLAYER_CAR_IDX] = 2.0;
+    gd.raceState = 'racing';
+    gd.racingStartS = gd.treeGreenAtS;
+    gd.inputGas[1] = 1;
   }
 }
 
@@ -139,31 +158,43 @@ function handleShiftTap(gd, balance, i) {
 
 function tickRacing(gd, balance, dt) {
   ensureAiPlan(gd, balance);
+  // AI may still need to launch (player launched first, transition fired).
+  const aiRt = gd._aiPlan.rt;
+  if (gd.inputShift[1] === 1 && (gd.raceTimeS - gd.treeGreenAtS) >= aiRt) {
+    gd.inputShift[1] = 0;
+  }
+  for (let i = 0; i < NUM_CARS; i++) {
+    if (gd.rtS[i] === 0 && !gd.inputShift[i]) {
+      gd.rtS[i] = Math.max(0, gd.raceTimeS - gd.treeGreenAtS);
+    }
+  }
   // AI shift logic — synthesize an edge tap when wheel-driven RPM crosses
-  // the target. The velocity guard prevents the AI from shifting on the very
-  // first racing frame, when RPM is still high from staging — the same trap
-  // the player test guards against.
-  if (!gd.finished[1] && !gd.blown[1] && gd.gear[1] < 4 && gd.velMs[1] > 4) {
+  // the target (only if launched + moving).
+  if (gd.rtS[1] > 0 && !gd.finished[1] && !gd.blown[1] && gd.gear[1] < 4 && gd.velMs[1] > 4) {
     const targetRpm = gd._aiPlan.shiftAtRpm[gd.gear[1] - 1];
     if (gd.rpm[1] >= targetRpm) {
       handleShiftTap(gd, balance, 1);
     }
   }
-  // Process shift taps (consume the edge flag)
-  for (let i = 0; i < NUM_CARS; i++) {
-    if (gd.inputShiftPressEdge[i]) {
-      gd.inputShiftPressEdge[i] = 0;
-      handleShiftTap(gd, balance, i);
-    }
+  // Process player shift edge
+  if (gd.inputShiftPressEdge[0]) {
+    gd.inputShiftPressEdge[0] = 0;
+    handleShiftTap(gd, balance, 0);
   }
+  // Per-car physics: launched cars (rtS > 0) step; unlaunched cars rev.
   for (let i = 0; i < NUM_CARS; i++) {
     if (gd.finished[i] || gd.blown[i]) continue;
-    stepCar(gd, balance, i, dt);
+    if (gd.rtS[i] > 0) {
+      stepCar(gd, balance, i, dt);
+    } else {
+      revToward(gd, balance, i, dt);
+    }
   }
+  // Finish detection — ET measured from tree green so RT is part of ET.
   for (let i = 0; i < NUM_CARS; i++) {
     if (!gd.finished[i] && -gd.posZ[i] >= FINISH_LINE_M) {
       gd.finished[i] = 1;
-      gd.finishTimeS[i] = gd.raceTimeS - gd.racingStartS;
+      gd.finishTimeS[i] = gd.raceTimeS - gd.treeGreenAtS;
     }
   }
   let allDone = true;
