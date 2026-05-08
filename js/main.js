@@ -353,7 +353,8 @@ function showResults() {
     el.innerHTML = `
       <h2 id="res-headline" style="font-size:96px;margin-bottom:32px"></h2>
       <div id="res-detail" style="font-size:32px;margin-bottom:16px"></div>
-      <div id="res-rt" style="font-size:24px;opacity:0.8;margin-bottom:32px"></div>
+      <div id="res-rt" style="font-size:24px;opacity:0.8;margin-bottom:16px"></div>
+      <div id="res-gold" style="font-size:28px;color:#ffd14a;font-weight:700;margin-bottom:24px;min-height:34px"></div>
       <button id="btn-rerun" class="btn-primary">RACE AGAIN</button>
       <button id="btn-results-garage" class="btn-secondary">GARAGE</button>
     `;
@@ -410,10 +411,8 @@ function showResults() {
       careerState = recordLoss(careerState, { gold: reward });
     }
     await saveCareer(careerState);
-    // Append gold delta to results screen
-    const goldEl = document.createElement('div');
-    goldEl.style.cssText = 'font-size:24px; color:#ffd14a; margin-top:12px;';
-    goldEl.textContent = `+${reward}g  · Total: ${careerState.gold.toLocaleString()}g`;
-    document.getElementById('screen-results').appendChild(goldEl);
+    // Write gold delta into the placeholder above the buttons
+    document.getElementById('res-gold').textContent =
+      `+${reward}g  · Total: ${careerState.gold.toLocaleString()}g`;
   }
 }

@@ -69,17 +69,39 @@ export function buildRaceBalance(careerState, seed) {
   playerFinal.color1 = ownedCar.paint.primary;
   playerFinal.color2 = ownedCar.paint.secondary;
 
-  // Opponent races the SAME stock car as the player. This makes the early
-  // career fair (skill match on RT + shift quality) and lets the player's
-  // upgrades (engine/turbo/tires/weight) translate cleanly into a winning
-  // edge as they progress. A different-car opponent disadvantaged the player
-  // on day one because cheaper starter cars are objectively slower than
-  // their pricier classmates. (The opponent picker is still exported for
-  // future use — e.g. Plan-3 RotW or championship modes.)
+  // Opponent races the SAME car as the player but with a parts loadout that
+  // scales with classWins. Race 1 (0 wins) → AI all stock — pure RT/shift
+  // match. Race 2 (1 win) → AI has 1 mod. Race N → AI has N-1 mods. The
+  // player must keep their car upgraded one mod ahead to stay competitive.
+  // This keeps every race winnable but makes upgrades feel essential.
   const opponentBase = playerBase;
-  const opponentParts = { engine: 0, turbo: 0, transmission: 0, tires: 0, weight: 0 };
+  const opponentParts = aiPartsForWins(careerState.classWins);
   const opponentWithParts = applyPartsToCar(opponentBase, opponentParts, balance.parts);
   const opponentFinal = applyTuningToCar(opponentWithParts, balance.defaultTune(opponentBase));
 
   return { ...balance, cars: [playerFinal, opponentFinal] };
+}
+
+/**
+ * Distribute `wins` "mod points" across the AI's 5 part slots. Adds tier 1 to
+ * each slot in order before bumping any to tier 2, etc. Caps at the highest
+ * tier each slot allows (weight has 4 tiers; others 5).
+ */
+function aiPartsForWins(wins) {
+  const slots = ['engine', 'tires', 'weight', 'turbo', 'transmission'];
+  const parts = { engine: 0, turbo: 0, transmission: 0, tires: 0, weight: 0 };
+  let remaining = wins;
+  let tier = 1;
+  while (remaining > 0 && tier <= 4) {
+    for (const slot of slots) {
+      if (remaining <= 0) break;
+      const maxTier = (slot === 'weight') ? 3 : 4;
+      if (parts[slot] < tier && parts[slot] < maxTier) {
+        parts[slot] = tier;
+        remaining--;
+      }
+    }
+    tier++;
+  }
+  return parts;
 }

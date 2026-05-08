@@ -37,10 +37,14 @@ html, body {
 #ui .screen.hidden { display: none; }
 .game-title { font-size: 96px; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 48px; }
 
-/* Title-screen menu: every button is the same width regardless of primary/secondary
- * variant. Group of related navigation choices should look uniform. */
-#screen-title .btn-primary,
-#screen-title .btn-secondary {
+/* Vertically stacked menu buttons inside a `.screen` container all share the
+ * same width regardless of primary/secondary variant. Group of related nav
+ * choices should look uniform per platform GAME_DEV_NOTES "Buttons of the
+ * same type must be the same size". The screen flex centers them; we just
+ * pin the width with a viewport cap. Excludes race-button (HUD bottom-edge
+ * gas/shift) and tab buttons (horizontal). */
+#ui .screen .btn-primary,
+#ui .screen .btn-secondary {
   width: 420px;
   max-width: 85vw;
   box-sizing: border-box;
