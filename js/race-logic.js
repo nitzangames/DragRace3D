@@ -186,9 +186,13 @@ function stepCar(gd, balance, i, dt) {
   const car = balance.cars[i];
   const wheelRps = gd.velMs[i] / (2 * Math.PI * car.wheelRadius);
   const wheelTargetRpm = wheelRps * 60 * car.gearRatios[gd.gear[i] - 1] * car.finalDrive;
-  // Gas pedal holds the engine in the power band; wheel speed may demand higher RPM (no drop below power band when gas is on)
-  const gasTarget = gd.inputGas[i] ? car.torquePeakRpm : car.idleRpm;
-  const targetRpm = Math.max(wheelTargetRpm, gasTarget);
+  // Launch-RPM floor: when gas is held, engine sits at 70% of torque peak
+  // even if the wheels aren't driving it that fast (clutch-slip approximation
+  // for the launch). 70% sits BELOW typical post-upshift RPM in any gear, so
+  // it doesn't pin the needle after a shift — the wheel-driven term wins
+  // there.
+  const launchFloor = gd.inputGas[i] ? car.torquePeakRpm * 0.7 : car.idleRpm;
+  const targetRpm = Math.max(wheelTargetRpm, launchFloor);
   gd.rpm[i] += (targetRpm - gd.rpm[i]) * Math.min(1, car.engineResponse * dt);
   if (gd.rpm[i] < car.idleRpm) gd.rpm[i] = car.idleRpm;
   const limiterRpm = car.redlineRpm * LIMITER_OVERSHOOT;

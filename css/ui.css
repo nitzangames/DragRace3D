@@ -75,9 +75,11 @@ html, body {
   position: absolute; bottom: 0;
   height: 220px; width: 50%;
   border: none; cursor: pointer; touch-action: manipulation;
-  font-family: system-ui; font-weight: 800; letter-spacing: 2px;
-  font-size: 36px; color: #fff;
-  display: flex; align-items: center; justify-content: center;
+  font-family: system-ui; color: #fff;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 14px 0 18px;
+  gap: 4px;
 }
 .shift-button {
   left: 0;
@@ -94,17 +96,26 @@ html, body {
 }
 .gas-button.held { background: #ff5a3a; }
 
-/* Dynamic button labels: desktop vs mobile */
-.lbl-desktop, .lbl-mobile { display: none; }
-/* Default fallback — show desktop labels for ambiguous cases */
-.lbl-desktop { display: inline; }
-/* Touch devices: show mobile labels only */
-@media (hover: none) and (pointer: coarse) {
-  .lbl-desktop { display: none; }
-  .lbl-mobile  { display: inline; }
+/* Stacked button labels: prompt hint above, big main label, small key hint */
+.btn-hint {
+  font-size: 22px; font-weight: 700; letter-spacing: 3px;
+  min-height: 26px; opacity: 0.9; text-transform: uppercase;
+  text-align: center;
 }
-/* Desktop (hover+fine pointer): show desktop labels */
-@media (hover: hover) and (pointer: fine) {
-  .lbl-desktop { display: inline; }
-  .lbl-mobile  { display: none; }
+.btn-hint.flash { animation: btn-flash 0.45s ease-in-out infinite alternate; }
+@keyframes btn-flash {
+  from { opacity: 0.4; }
+  to   { opacity: 1.0; }
+}
+.btn-main {
+  font-size: 56px; font-weight: 800; letter-spacing: 4px;
+  line-height: 1.0;
+}
+.btn-key {
+  font-size: 14px; font-weight: 600; opacity: 0.55;
+  letter-spacing: 1.5px;
+}
+/* Hide the keyboard-key hint on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .btn-key { display: none; }
 }

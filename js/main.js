@@ -69,6 +69,7 @@ function loop(now) {
       acc -= FIXED_DT;
     }
     if (tachUpdater) tachUpdater.update(gameData.rpm[0], gameData.gear[0], gameData.slip[0]);
+    updateButtonHints(gameData);
     document.getElementById('hud-gear').textContent = 'GEAR ' + gameData.gear[0];
     document.getElementById('hud-time').textContent =
       ((gameData.raceState === 'racing' || gameData.raceState === 'finished')
@@ -85,6 +86,35 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
+
+// Dynamic prompt above each button. Walks the race-state machine and tach
+// state to tell the player what to do next.
+const shiftHintEl = document.getElementById('shift-hint');
+const gasHintEl   = document.getElementById('gas-hint');
+const playerRedline = balance.cars[PLAYER_CAR_IDX].redlineRpm;
+function updateButtonHints(gd) {
+  let leftHint = '', rightHint = '';
+  let leftFlash = false;
+  const state = gd.raceState;
+  if (state === 'staging' || state === 'tree') {
+    leftHint = rightHint = 'HOLD';
+  } else if (state === 'launching' && gd.treeGreenAtS > 0) {
+    leftHint = 'LET GO';
+    rightHint = 'HOLD';
+    leftFlash = true;  // green light: flash the LET GO prompt
+  } else if (state === 'racing') {
+    rightHint = 'HOLD';
+    const rpm = gd.rpm[PLAYER_CAR_IDX];
+    const inGreen = rpm >= playerRedline - GREEN_BAND_RPM && rpm < playerRedline;
+    if (inGreen && gd.gear[PLAYER_CAR_IDX] < 4) {
+      leftHint = 'PRESS!';
+      leftFlash = true;
+    }
+  }
+  if (shiftHintEl.textContent !== leftHint) shiftHintEl.textContent = leftHint;
+  shiftHintEl.classList.toggle('flash', leftFlash);
+  if (gasHintEl.textContent !== rightHint) gasHintEl.textContent = rightHint;
+}
 
 function showResults() {
   let el = document.getElementById('screen-results');
