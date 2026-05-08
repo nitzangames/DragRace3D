@@ -86,6 +86,7 @@ test('shift: tap shift in racing upshifts and drops RPM', () => {
   gd.raceState = 'racing'; gd.rtS[0] = 0.30; gd.rtS[1] = 0.32;
   gd.gear[0] = 1;
   gd.rpm[0] = 6500;
+  gd.velMs[0] = 10;  // moving — required for the upshift to be honored
   gd.inputGas[0] = 1;
   gd.inputShiftPressEdge[0] = 1;
   tickRace(gd, balance2, FIXED_DT);
