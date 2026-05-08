@@ -7,6 +7,16 @@ import { buildRaceScene, renderFrame } from './renderer3d.js';
 import { createChaseCamera, updateChaseCamera } from './camera3d.js';
 import { buildTachSVG } from './tach.js';
 import { resetEffects, updateEffects } from './effects.js';
+import { loadCareer, saveCareer } from './save.js';
+import { newCareer, addOwnedCar, removeOwnedCar, spendGold, recordWin, recordLoss, setCurrentCar } from './career.js';
+import { renderFirstCarGrid, buildOwnedCarInstance, renderCareerHome, buildRaceBalance } from './career-flow.js';
+import { renderGarage, renderCarDetail } from './garage.js';
+import { renderPartsShop } from './parts-shop.js';
+import { renderBuyShop } from './buy-shop.js';
+import { renderTuningUI } from './tuning-ui.js';
+import { renderPaintUI } from './paint-ui.js';
+import { computeRaceReward } from './economy.js';
+import { renderQuickRace, buildQuickRaceBalance } from './quick-race.js';
 
 const canvas = document.getElementById('game-canvas');
 const T = window.THREE;
@@ -31,28 +41,244 @@ function show(id) {
 }
 
 function startRace() {
-  if (!scene) {
-    const built = buildRaceScene(balance);
-    scene = built.scene; cars = built.cars; env = built.env;
+  // Rebuild scene every race — player may have switched cars / classes.
+  if (scene) {
+    while (scene.children.length > 0) scene.remove(scene.children[0]);
+    scene = null;
   }
-  resetRace(gameData, balance, Date.now() | 0);
+  const built = buildRaceScene(raceBalance);
+  scene = built.scene; cars = built.cars; env = built.env;
+  resetRace(gameData, raceBalance, Date.now() | 0);
   resetEffects();
   show('hud');
   started = true;
   const tachContainer = document.getElementById('tach-container');
-  tachUpdater = buildTachSVG(tachContainer, balance.cars[0].redlineRpm, GREEN_BAND_RPM);
+  tachUpdater = buildTachSVG(tachContainer, raceBalance.cars[0].redlineRpm, GREEN_BAND_RPM);
 }
 
-document.getElementById('btn-start').addEventListener('click', e => {
-  // Blur so Spacebar doesn't reactivate the button (which would re-trigger
-  // startRace → resetRace every frame Space is held).
-  e.currentTarget.blur();
-  startRace();
-});
 document.getElementById('version-text').textContent = VERSION;
 
 // Initial input wiring needs gameData reference; must be after gameData allocated.
 initInput(gameData);
+
+let careerState = null;
+let raceBalance = balance; // current race's balance — reset by each race entrypoint
+let quickRaceMode = false;
+let activeOwnedCar = null;
+let activeTab = 'parts';
+
+async function initTitleButtons() {
+  const continueBtn = document.getElementById('btn-continue-career');
+  const newBtn      = document.getElementById('btn-new-career');
+  const quickBtn    = document.getElementById('btn-quick-race');
+  const garageBtn   = document.getElementById('btn-garage');
+
+  // Show CONTINUE only if a save exists
+  const existing = await loadCareer();
+  if (existing) {
+    careerState = existing;
+    continueBtn.classList.remove('hidden');
+  }
+
+  newBtn.addEventListener('click', e => { e.currentTarget.blur(); onNewCareer(); });
+  continueBtn.addEventListener('click', e => { e.currentTarget.blur(); onContinueCareer(); });
+  quickBtn.addEventListener('click', e => { e.currentTarget.blur(); onQuickRace(); });
+  garageBtn.addEventListener('click', e => { e.currentTarget.blur(); onGarage(); });
+}
+
+function onNewCareer() {
+  careerState = newCareer();
+  renderFirstCarGrid(
+    document.getElementById('firstcar-grid'),
+    careerState,
+    onFirstCarPicked
+  );
+  show('screen-firstcar');
+}
+
+async function onFirstCarPicked(carId) {
+  const car = balance.cars.find(c => c.id === carId);
+  careerState = spendGold(careerState, car.price);
+  const carInstance = buildOwnedCarInstance(carId);
+  careerState = addOwnedCar(careerState, carInstance);
+  await saveCareer(careerState);
+  showCareerHome();
+}
+
+function showCareerHome() {
+  quickRaceMode = false;
+  if (!careerState) return;
+  renderCareerHome(careerState);
+  show('screen-career-home');
+}
+
+document.getElementById('btn-firstcar-back').addEventListener('click', () => show('screen-title'));
+
+function onContinueCareer() { showCareerHome(); }
+function onQuickRace() {
+  renderQuickRace(onQuickRacePick);
+  show('screen-quickrace');
+}
+function onQuickRacePick(carId) {
+  raceBalance = buildQuickRaceBalance(carId, Date.now() | 0);
+  quickRaceMode = true;
+  startRace();
+}
+
+document.getElementById('btn-quickrace-back').addEventListener('click', () => show('screen-title'));
+function onGarage() {
+  if (!careerState) {
+    careerState = newCareer();  // allow garage browsing without a save (no persistence yet)
+  }
+  renderGarage(careerState, onGarageCarPick);
+  show('screen-garage');
+}
+
+function onGarageCarPick(carId) {
+  activeOwnedCar = careerState.ownedCars.find(c => c.carId === carId);
+  activeTab = 'parts';
+  // Reset visual tab state to PARTS
+  document.querySelectorAll('#screen-cardetail .tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === activeTab);
+  });
+  renderCarDetail(careerState, activeOwnedCar);
+  renderActiveTab();
+  show('screen-cardetail');
+}
+
+function onTabChange(tab) {
+  activeTab = tab;
+  document.querySelectorAll('#screen-cardetail .tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === activeTab);
+  });
+  renderCarDetail(careerState, activeOwnedCar);
+  renderActiveTab();
+}
+
+function renderActiveTab() {
+  const body = document.getElementById('cardetail-tabbody');
+  body.innerHTML = '';
+  switch (activeTab) {
+    case 'parts': renderPartsShop(body, careerState, activeOwnedCar, onInstallPart); break;
+    case 'tune':  renderTuningUI(body, activeOwnedCar, onTuneChange); break;
+    case 'paint': renderPaintUI(body, activeOwnedCar, onPaintChange); break;
+    case 'sell':  renderSellUI(body, activeOwnedCar); break;
+  }
+}
+
+async function onInstallPart(slot, tier) {
+  const price = balance.parts[slot][tier].price;
+  if (careerState.gold < price) return;
+  careerState = spendGold(careerState, price);
+  // Update the owned-car instance's parts
+  const idx = careerState.ownedCars.findIndex(c => c.carId === activeOwnedCar.carId);
+  const updatedCar = {
+    ...careerState.ownedCars[idx],
+    parts: { ...careerState.ownedCars[idx].parts, [slot]: tier },
+  };
+  const newOwned = [...careerState.ownedCars];
+  newOwned[idx] = updatedCar;
+  careerState = { ...careerState, ownedCars: newOwned };
+  activeOwnedCar = updatedCar;
+  await saveCareer(careerState);
+  renderActiveTab();  // re-render with new state
+}
+
+async function onTuneChange(newTune) {
+  const idx = careerState.ownedCars.findIndex(c => c.carId === activeOwnedCar.carId);
+  const updated = { ...careerState.ownedCars[idx], tune: newTune };
+  const newOwned = [...careerState.ownedCars];
+  newOwned[idx] = updated;
+  careerState = { ...careerState, ownedCars: newOwned };
+  activeOwnedCar = updated;
+  await saveCareer(careerState);
+}
+
+async function onPaintChange(newPaint) {
+  const idx = careerState.ownedCars.findIndex(c => c.carId === activeOwnedCar.carId);
+  const updated = { ...careerState.ownedCars[idx], paint: newPaint };
+  const newOwned = [...careerState.ownedCars];
+  newOwned[idx] = updated;
+  careerState = { ...careerState, ownedCars: newOwned };
+  activeOwnedCar = updated;
+  await saveCareer(careerState);
+  // Re-render so swatches show the new selection
+  renderActiveTab();
+}
+
+function renderSellUI(parent, ownedCar) {
+  const car = balance.cars.find(c => c.id === ownedCar.carId);
+  const sellPrice = Math.floor(car.price * 0.5);  // 50% of new price
+  parent.innerHTML = `
+    <div style="font-size:18px;margin-bottom:14px;">
+      Sell ${car.name} for <span class="gold">${sellPrice.toLocaleString()}g</span>?
+    </div>
+    <p class="subtitle">You'll lose the parts and tune installed on this car.</p>
+    <button id="btn-sell-confirm" class="btn-primary" ${
+      careerState.ownedCars.length <= 1 ? 'disabled' : ''
+    }>SELL</button>
+    ${careerState.ownedCars.length <= 1 ? '<p class="subtitle" style="color:#ff8a5a;">Cannot sell your only car.</p>' : ''}
+  `;
+  if (careerState.ownedCars.length <= 1) return;
+  document.getElementById('btn-sell-confirm').addEventListener('click', async () => {
+    careerState = removeOwnedCar(careerState, ownedCar.carId);
+    careerState = { ...careerState, gold: careerState.gold + sellPrice };
+    await saveCareer(careerState);
+    renderGarage(careerState, onGarageCarPick);
+    show('screen-garage');
+  });
+}
+
+async function onSetCurrent() {
+  careerState = setCurrentCar(careerState, activeOwnedCar.carId);
+  await saveCareer(careerState);
+  renderCarDetail(careerState, activeOwnedCar);
+}
+
+initTitleButtons();
+
+document.getElementById('btn-career-back').addEventListener('click', () => show('screen-title'));
+document.getElementById('btn-career-garage').addEventListener('click', () => onGarage());
+document.getElementById('btn-next-race').addEventListener('click', () => onNextRace());
+
+document.getElementById('btn-garage-back').addEventListener('click', () => {
+  if (careerState && careerState.ownedCars.length > 0) showCareerHome();
+  else show('screen-title');
+});
+document.getElementById('btn-garage-buy').addEventListener('click', () => {
+  renderBuyShop(careerState, onBuyCar);
+  show('screen-buyshop');
+});
+
+async function onBuyCar(carId) {
+  const car = balance.cars.find(c => c.id === carId);
+  if (careerState.gold < car.price) return;
+  careerState = spendGold(careerState, car.price);
+  careerState = addOwnedCar(careerState, buildOwnedCarInstance(carId));
+  await saveCareer(careerState);
+  renderGarage(careerState, onGarageCarPick);
+  show('screen-garage');
+}
+
+document.getElementById('btn-buyshop-back').addEventListener('click', () => {
+  renderGarage(careerState, onGarageCarPick);
+  show('screen-garage');
+});
+
+document.querySelectorAll('#screen-cardetail .tab').forEach(btn => {
+  btn.addEventListener('click', () => onTabChange(btn.dataset.tab));
+});
+document.getElementById('btn-cardetail-back').addEventListener('click', () => {
+  renderGarage(careerState, onGarageCarPick);
+  show('screen-garage');
+});
+document.getElementById('btn-cardetail-set-current').addEventListener('click', onSetCurrent);
+
+async function onNextRace() {
+  quickRaceMode = false;  // career race
+  raceBalance = buildRaceBalance(careerState, Date.now() | 0);
+  startRace();
+}
 
 function loop(now) {
   // Battery: respect platform pause
@@ -67,7 +293,7 @@ function loop(now) {
   if (started) {
     acc += dt;
     while (acc >= FIXED_DT) {
-      tickRace(gameData, balance, FIXED_DT);
+      tickRace(gameData, raceBalance, FIXED_DT);
       acc -= FIXED_DT;
     }
     if (tachUpdater) tachUpdater.update(gameData.rpm[0], gameData.gear[0], gameData.slip[0]);
@@ -94,7 +320,6 @@ requestAnimationFrame(loop);
 // state to tell the player what to do next.
 const shiftHintEl = document.getElementById('shift-hint');
 const gasHintEl   = document.getElementById('gas-hint');
-const playerRedline = balance.cars[PLAYER_CAR_IDX].redlineRpm;
 function updateButtonHints(gd) {
   let leftHint = '', rightHint = '';
   let leftFlash = false;
@@ -108,6 +333,7 @@ function updateButtonHints(gd) {
   } else if (state === 'racing') {
     rightHint = 'HOLD';
     const rpm = gd.rpm[PLAYER_CAR_IDX];
+    const playerRedline = raceBalance.cars[PLAYER_CAR_IDX].redlineRpm;
     const inGreen = rpm >= playerRedline - GREEN_BAND_RPM && rpm < playerRedline;
     if (inGreen && gd.gear[PLAYER_CAR_IDX] < 4) {
       leftHint = 'PRESS!';
@@ -133,7 +359,11 @@ function showResults() {
     document.getElementById('ui').appendChild(el);
     document.getElementById('btn-rerun').addEventListener('click', () => {
       el.remove();
-      startRace();
+      if (careerState && !quickRaceMode) {
+        showCareerHome();
+      } else {
+        startRace();  // quick race fallback / no career
+      }
     });
   }
   show('screen-results');
@@ -147,4 +377,30 @@ function showResults() {
     `Your ET: ${playerET == null ? '—' : playerET.toFixed(3) + 's'}   Opponent: ${oppET == null ? '—' : oppET.toFixed(3) + 's'}`;
   document.getElementById('res-rt').textContent =
     `RT: ${gameData.rtS[PLAYER_CAR_IDX].toFixed(3)}s`;
+
+  // Record career result if we're in career mode (not quick race)
+  recordCareerResult();
+
+  async function recordCareerResult() {
+    if (!careerState || quickRaceMode) return;
+    const won = gameData.winnerCarIdx === PLAYER_CAR_IDX;
+    const perfectRT = gameData.rtS[PLAYER_CAR_IDX] > 0 && gameData.rtS[PLAYER_CAR_IDX] < 0.100;
+    const reward = computeRaceReward({
+      classIndex: careerState.classIndex,
+      won,
+      mode: 'career',
+      perfectRT,
+    });
+    if (won) {
+      careerState = recordWin(careerState, { gold: reward });
+    } else {
+      careerState = recordLoss(careerState, { gold: reward });
+    }
+    await saveCareer(careerState);
+    // Append gold delta to results screen
+    const goldEl = document.createElement('div');
+    goldEl.style.cssText = 'font-size:24px; color:#ffd14a; margin-top:12px;';
+    goldEl.textContent = `+${reward}g  · Total: ${careerState.gold.toLocaleString()}g`;
+    document.getElementById('screen-results').appendChild(goldEl);
+  }
 }
