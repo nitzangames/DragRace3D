@@ -1,4 +1,4 @@
-export const VERSION = 'v0.3.16';
+export const VERSION = 'v0.3.17';
 
 export const FIXED_DT = 1 / 120;
 export const MAX_DT = 1 / 30;

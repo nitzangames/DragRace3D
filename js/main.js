@@ -12,6 +12,7 @@ import { newCareer, addOwnedCar, removeOwnedCar, spendGold, recordWin, recordLos
 import { renderFirstCarGrid, buildOwnedCarInstance, renderCareerHome, buildRaceBalance } from './career-flow.js';
 import { renderGarage, renderCarDetail } from './garage.js';
 import { renderPartsShop } from './parts-shop.js';
+import { renderBuyShop } from './buy-shop.js';
 import { renderTuningUI } from './tuning-ui.js';
 import { renderPaintUI } from './paint-ui.js';
 import { computeRaceReward } from './economy.js';
@@ -235,7 +236,23 @@ document.getElementById('btn-garage-back').addEventListener('click', () => {
   else show('screen-title');
 });
 document.getElementById('btn-garage-buy').addEventListener('click', () => {
-  console.log('BUY NEW CAR (todo: shop screen)');
+  renderBuyShop(careerState, onBuyCar);
+  show('screen-buyshop');
+});
+
+async function onBuyCar(carId) {
+  const car = balance.cars.find(c => c.id === carId);
+  if (careerState.gold < car.price) return;
+  careerState = spendGold(careerState, car.price);
+  careerState = addOwnedCar(careerState, buildOwnedCarInstance(carId));
+  await saveCareer(careerState);
+  renderGarage(careerState, onGarageCarPick);
+  show('screen-garage');
+}
+
+document.getElementById('btn-buyshop-back').addEventListener('click', () => {
+  renderGarage(careerState, onGarageCarPick);
+  show('screen-garage');
 });
 
 document.querySelectorAll('#screen-cardetail .tab').forEach(btn => {
