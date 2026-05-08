@@ -34,6 +34,16 @@ let started = false;
 // Debug handle (used by tests-visual probes; harmless in prod)
 if (typeof window !== 'undefined') window.__dr3d_gd = gameData;
 
+/**
+ * Optimal shift RPM for a given car: midpoint between torque peak and redline.
+ * Cars with low torque peaks (e.g., Civitas peak=4500, redline=6500) want to
+ * shift well below redline because torque is already falling past peak. The
+ * green-zone tach cue and PRESS! hint both pivot on this value.
+ */
+function optimalShiftRpm(car) {
+  return Math.floor((car.torquePeakRpm + car.redlineRpm) / 2);
+}
+
 function show(id) {
   document.querySelectorAll('#ui .screen').forEach(s => s.classList.add('hidden'));
   const el = document.getElementById(id);
@@ -53,7 +63,8 @@ function startRace() {
   show('hud');
   started = true;
   const tachContainer = document.getElementById('tach-container');
-  tachUpdater = buildTachSVG(tachContainer, raceBalance.cars[0].redlineRpm, GREEN_BAND_RPM);
+  const playerCar = raceBalance.cars[0];
+  tachUpdater = buildTachSVG(tachContainer, playerCar.redlineRpm, GREEN_BAND_RPM, optimalShiftRpm(playerCar));
 }
 
 document.getElementById('version-text').textContent = VERSION;
@@ -333,8 +344,10 @@ function updateButtonHints(gd) {
   } else if (state === 'racing') {
     rightHint = 'HOLD';
     const rpm = gd.rpm[PLAYER_CAR_IDX];
-    const playerRedline = raceBalance.cars[PLAYER_CAR_IDX].redlineRpm;
-    const inGreen = rpm >= playerRedline - GREEN_BAND_RPM && rpm < playerRedline;
+    const playerCar = raceBalance.cars[PLAYER_CAR_IDX];
+    const shiftRpm = optimalShiftRpm(playerCar);
+    const half = GREEN_BAND_RPM / 2;
+    const inGreen = rpm >= shiftRpm - half && rpm < playerCar.redlineRpm;
     if (inGreen && gd.gear[PLAYER_CAR_IDX] < 4) {
       leftHint = 'PRESS!';
       leftFlash = true;
