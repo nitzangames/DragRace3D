@@ -150,10 +150,20 @@ function handleShiftTap(gd, balance, i) {
   const newGear = oldGear + 1;
   const ratioOld = car.gearRatios[oldGear - 1];
   const ratioNew = car.gearRatios[newGear - 1];
+  const rpmBefore = gd.rpm[i];
   gd.rpm[i] = gd.rpm[i] * (ratioNew / ratioOld);
   if (gd.rpm[i] < car.idleRpm) gd.rpm[i] = car.idleRpm;
   gd.gear[i] = newGear;
   gd.timeAtLimiterS[i] = 0;
+  // Record shift event for post-race telemetry
+  if (!gd._shiftLog) gd._shiftLog = [[], []];
+  gd._shiftLog[i].push({
+    t: +(gd.raceTimeS - gd.treeGreenAtS).toFixed(3),
+    gear: newGear,
+    rpmAtShift: Math.round(rpmBefore),
+    rpmAfter: Math.round(gd.rpm[i]),
+    v: +gd.velMs[i].toFixed(1),
+  });
 }
 
 function tickRacing(gd, balance, dt) {

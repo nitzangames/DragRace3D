@@ -395,6 +395,26 @@ function showResults() {
   document.getElementById('res-rt').textContent =
     `RT: ${gameData.rtS[PLAYER_CAR_IDX].toFixed(3)}s`;
 
+  // Race telemetry — log everything that affects who won so it's diagnosable
+  // when something feels off ("AI keeps beating me even with the same car").
+  console.group(`[dr3d] race summary (${gameData.winnerCarIdx === PLAYER_CAR_IDX ? 'YOU WIN' : 'YOU LOSE'})`);
+  console.log('Player:',
+    `RT ${gameData.rtS[PLAYER_CAR_IDX].toFixed(3)}s`,
+    `· ET ${gameData.finished[PLAYER_CAR_IDX] ? gameData.finishTimeS[PLAYER_CAR_IDX].toFixed(3)+'s' : '—'}`,
+    `· final v ${gameData.velMs[PLAYER_CAR_IDX].toFixed(1)} m/s`,
+    `· final gear ${gameData.gear[PLAYER_CAR_IDX]}`,
+    gameData.blown[PLAYER_CAR_IDX] ? '· BLOWN' : '');
+  console.log('Player shifts:', gameData._shiftLog?.[0] ?? []);
+  console.log('AI:',
+    `RT ${gameData.rtS[1].toFixed(3)}s`,
+    `· ET ${gameData.finished[1] ? gameData.finishTimeS[1].toFixed(3)+'s' : '—'}`,
+    `· final v ${gameData.velMs[1].toFixed(1)} m/s`,
+    `· final gear ${gameData.gear[1]}`,
+    gameData.blown[1] ? '· BLOWN' : '');
+  console.log('AI shifts:', gameData._shiftLog?.[1] ?? []);
+  console.log('AI plan:', gameData._aiPlan);
+  console.groupEnd();
+
   // Record career result if we're in career mode (not quick race)
   recordCareerResult();
 
