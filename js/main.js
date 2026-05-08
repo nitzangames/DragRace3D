@@ -6,6 +6,7 @@ import { initInput } from './input.js';
 import { buildRaceScene, renderFrame } from './renderer3d.js';
 import { createChaseCamera, updateChaseCamera } from './camera3d.js';
 import { buildTachSVG } from './tach.js';
+import { resetEffects, updateEffects } from './effects.js';
 
 const canvas = document.getElementById('game-canvas');
 const T = window.THREE;
@@ -35,6 +36,7 @@ function startRace() {
     scene = built.scene; cars = built.cars; env = built.env;
   }
   resetRace(gameData, balance, Date.now() | 0);
+  resetEffects();
   show('hud');
   started = true;
   const tachContainer = document.getElementById('tach-container');
@@ -77,6 +79,7 @@ function loop(now) {
         : '0.00') + 's';
     document.getElementById('hud-speed').textContent =
       Math.round(gameData.velMs[0] * 2.237) + ' mph';
+    updateEffects(gameData, dt);
     updateChaseCamera(camera, gameData);
     renderFrame(renderer, scene, camera, cars, env, gameData);
     if (gameData.raceState === 'finished' && !document.getElementById('screen-results')) {

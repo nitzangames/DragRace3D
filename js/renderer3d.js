@@ -1,8 +1,9 @@
 import { buildClassicEnv, updateTreeFromGameData } from './env-builder.js';
 import { buildCar } from './car-models.js';
+import { initEffects } from './effects.js';
 import { NUM_CARS } from './constants.js';
 
-/** Build the race scene (classic strip + 2 cars). Returns { scene, cars, env }. */
+/** Build the race scene (classic strip + 2 cars + effect pools). Returns { scene, cars, env }. */
 export function buildRaceScene(balance) {
   const T = window.THREE;
   const scene = new T.Scene();
@@ -13,6 +14,7 @@ export function buildRaceScene(balance) {
     scene.add(car);
     cars.push(car);
   }
+  initEffects(scene);
   return { scene, cars, env };
 }
 
