@@ -5,15 +5,25 @@ html, body {
   background: #0a0e14; color: #fff;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
-canvas#game-canvas {
+
+/* 9:16 aspect-ratio container — both canvas and HUD sit inside this */
+#game-container {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  height: 100%;
+  max-width: 100%;
+}
+
+#game-container canvas#game-canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
   display: block;
-  max-width: 100%; max-height: 100%;
-  object-fit: contain;
   touch-action: none;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
+
 #ui {
   position: absolute; inset: 0;
   pointer-events: none;
@@ -49,8 +59,9 @@ canvas#game-canvas {
   padding: 6px 12px;
   border-radius: 8px;
 }
-.hud-chip.top-left { top: 24px; left: 24px; }
+.hud-chip.top-left  { top: 24px; left: 24px; }
 .hud-chip.top-right { top: 24px; right: 24px; }
+.hud-chip.top-center { top: 24px; left: 50%; transform: translateX(-50%); }
 
 #tach-container {
   position: absolute;
@@ -64,8 +75,8 @@ canvas#game-canvas {
   position: absolute; bottom: 0;
   height: 220px; width: 50%;
   border: none; cursor: pointer; touch-action: manipulation;
-  font-family: system-ui; font-weight: 800; letter-spacing: 4px;
-  font-size: 64px; color: #fff;
+  font-family: system-ui; font-weight: 800; letter-spacing: 2px;
+  font-size: 36px; color: #fff;
   display: flex; align-items: center; justify-content: center;
 }
 .shift-button {
@@ -82,3 +93,18 @@ canvas#game-canvas {
   border-left: 4px solid #ff8a5a;
 }
 .gas-button.held { background: #ff5a3a; }
+
+/* Dynamic button labels: desktop vs mobile */
+.lbl-desktop, .lbl-mobile { display: none; }
+/* Default fallback — show desktop labels for ambiguous cases */
+.lbl-desktop { display: inline; }
+/* Touch devices: show mobile labels only */
+@media (hover: none) and (pointer: coarse) {
+  .lbl-desktop { display: none; }
+  .lbl-mobile  { display: inline; }
+}
+/* Desktop (hover+fine pointer): show desktop labels */
+@media (hover: hover) and (pointer: fine) {
+  .lbl-desktop { display: inline; }
+  .lbl-mobile  { display: none; }
+}

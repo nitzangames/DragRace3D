@@ -9,19 +9,28 @@
   <script src="https://cdn-play.nitzan.games/lib/play-sdk.js"></script>
 </head>
 <body>
-  <canvas id="game-canvas" width="1080" height="1920"></canvas>
-  <div id="ui">
-    <div id="screen-title" class="screen">
-      <h1 class="game-title">DRAG RACE 3D</h1>
-      <button id="btn-start" class="btn-primary">START RACE</button>
-      <div class="version" id="version-text"></div>
-    </div>
-    <div id="hud" class="screen hidden hud-overlay">
-      <div id="hud-time" class="hud-chip top-left">0.00s</div>
-      <div id="hud-speed" class="hud-chip top-right">0 mph</div>
-      <div id="tach-container"></div>
-      <button id="shift-button" class="race-button shift-button">SHIFT</button>
-      <button id="gas-button" class="race-button gas-button">GAS</button>
+  <div id="game-container">
+    <canvas id="game-canvas" width="1080" height="1920"></canvas>
+    <div id="ui">
+      <div id="screen-title" class="screen">
+        <h1 class="game-title">DRAG RACE 3D</h1>
+        <button id="btn-start" class="btn-primary">START RACE</button>
+        <div class="version" id="version-text"></div>
+      </div>
+      <div id="hud" class="screen hidden hud-overlay">
+        <div id="hud-time" class="hud-chip top-left">0.00s</div>
+        <div id="hud-speed" class="hud-chip top-right">0 mph</div>
+        <div id="hud-gear" class="hud-chip top-center">GEAR 1</div>
+        <div id="tach-container"></div>
+        <button id="shift-button" class="race-button shift-button">
+          <span class="lbl-desktop">LEFT SHIFT</span>
+          <span class="lbl-mobile">SHIFT</span>
+        </button>
+        <button id="gas-button" class="race-button gas-button">
+          <span class="lbl-desktop">SPACEBAR</span>
+          <span class="lbl-mobile">GAS</span>
+        </button>
+      </div>
     </div>
   </div>
   <script type="module" src="js/main.js"></script>

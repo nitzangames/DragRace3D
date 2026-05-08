@@ -61,6 +61,7 @@ function loop(now) {
       acc -= FIXED_DT;
     }
     if (tachUpdater) tachUpdater.update(gameData.rpm[0], gameData.gear[0]);
+    document.getElementById('hud-gear').textContent = 'GEAR ' + gameData.gear[0];
     document.getElementById('hud-time').textContent =
       ((gameData.raceState === 'racing' || gameData.raceState === 'finished')
         ? (gameData.raceTimeS - gameData.racingStartS).toFixed(2)
