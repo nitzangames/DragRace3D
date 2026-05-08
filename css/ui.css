@@ -79,9 +79,9 @@ html, body {
 
 #tach-container {
   position: absolute;
-  top: 12%;
+  top: 4%;
   left: 50%; transform: translateX(-50%);
-  width: 65%; aspect-ratio: 1/1;
+  width: 55%; aspect-ratio: 1/1;
   pointer-events: none;
 }
 
