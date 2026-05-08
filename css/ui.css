@@ -182,3 +182,19 @@ html, body {
 }
 .tab.active { color: #fff; border-color: #ff8a5a; background: #2a2d33; }
 #cardetail-tabbody { padding: 0 24px; min-height: 280px; max-width: 720px; margin: 0 auto; width: 100%; box-sizing: border-box; color: #fff; font-family: system-ui; }
+
+.parts-slot { margin: 12px 0; }
+.parts-slot h3 { font-size: 18px; margin-bottom: 6px; opacity: 0.85; font-family: system-ui; color: #fff; }
+.tier-row { display: flex; gap: 6px; }
+.tier-btn {
+  flex: 1; padding: 10px 6px; font-size: 14px;
+  background: #1a1d22; color: #888; border: 2px solid #333;
+  border-radius: 8px; cursor: not-allowed; font-family: system-ui;
+}
+.tier-btn .t-name { font-weight: 700; }
+.tier-btn .t-price { color: #ffd14a; margin-top: 4px; font-size: 13px; }
+.tier-btn.installed { color: #fff; border-color: #2aa050; background: #1a3520; }
+.tier-btn.owned    { color: #ddd; border-color: #2aa050; opacity: 0.5; }
+.tier-btn.buyable  { color: #fff; border-color: #ff8a5a; cursor: pointer; }
+.tier-btn.buyable:active { background: #2a2d33; }
+.tier-btn.locked   { opacity: 0.4; }

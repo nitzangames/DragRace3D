@@ -11,6 +11,7 @@ import { loadCareer, saveCareer } from './save.js';
 import { newCareer, addOwnedCar, spendGold, recordWin, recordLoss, setCurrentCar } from './career.js';
 import { renderFirstCarGrid, buildOwnedCarInstance, renderCareerHome, buildRaceBalance } from './career-flow.js';
 import { renderGarage, renderCarDetail } from './garage.js';
+import { renderPartsShop } from './parts-shop.js';
 import { computeRaceReward } from './economy.js';
 
 const canvas = document.getElementById('game-canvas');
@@ -145,11 +146,29 @@ function renderActiveTab() {
   const body = document.getElementById('cardetail-tabbody');
   body.innerHTML = '';
   switch (activeTab) {
-    case 'parts': body.textContent = 'PARTS UI — Task 14'; break;
+    case 'parts': renderPartsShop(body, careerState, activeOwnedCar, onInstallPart); break;
     case 'tune':  body.textContent = 'TUNE UI — Task 15';  break;
     case 'paint': body.textContent = 'PAINT UI — Task 16'; break;
     case 'sell':  body.textContent = 'SELL UI — Task 17';  break;
   }
+}
+
+async function onInstallPart(slot, tier) {
+  const price = balance.parts[slot][tier].price;
+  if (careerState.gold < price) return;
+  careerState = spendGold(careerState, price);
+  // Update the owned-car instance's parts
+  const idx = careerState.ownedCars.findIndex(c => c.carId === activeOwnedCar.carId);
+  const updatedCar = {
+    ...careerState.ownedCars[idx],
+    parts: { ...careerState.ownedCars[idx].parts, [slot]: tier },
+  };
+  const newOwned = [...careerState.ownedCars];
+  newOwned[idx] = updatedCar;
+  careerState = { ...careerState, ownedCars: newOwned };
+  activeOwnedCar = updatedCar;
+  await saveCareer(careerState);
+  renderActiveTab();  // re-render with new state
 }
 
 async function onSetCurrent() {
