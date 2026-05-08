@@ -114,6 +114,11 @@ function tickLaunching(gd, balance, dt) {
   for (let i = 0; i < NUM_CARS; i++) {
     if (gd.rtS[i] === 0 && !gd.inputShift[i]) {
       gd.rtS[i] = Math.max(0, gd.raceTimeS - gd.treeGreenAtS);
+      // The initial keydown of Left Shift (way back during staging) set the
+      // press-edge flag. Without this clear, the very first tickRacing tick
+      // would consume it as a fake "tap shift" → player launches in gear 2,
+      // skipping gear 1 entirely. Clear it at the moment of launch.
+      gd.inputShiftPressEdge[i] = 0;
     }
   }
   // Per-car physics: launched cars (rtS > 0) get stepCar; unlaunched continue
@@ -186,10 +191,11 @@ function tickRacing(gd, balance, dt) {
       handleShiftTap(gd, balance, 1);
     }
   }
-  // Process player shift edge
+  // Process player shift edge — only honor as upshift if the player is
+  // actually moving (guards against stale edges from staging keydowns).
   if (gd.inputShiftPressEdge[0]) {
     gd.inputShiftPressEdge[0] = 0;
-    handleShiftTap(gd, balance, 0);
+    if (gd.velMs[0] > 1) handleShiftTap(gd, balance, 0);
   }
   // Per-car physics: launched cars (rtS > 0) step; unlaunched cars rev.
   for (let i = 0; i < NUM_CARS; i++) {
