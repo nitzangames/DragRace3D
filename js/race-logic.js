@@ -103,7 +103,27 @@ function tickLaunching(gd, balance, dt) {
   }
 }
 
+function handleShiftTap(gd, balance, i) {
+  const car = balance.cars[i];
+  if (gd.gear[i] >= 4) return;
+  const oldGear = gd.gear[i];
+  const newGear = oldGear + 1;
+  const ratioOld = car.gearRatios[oldGear - 1];
+  const ratioNew = car.gearRatios[newGear - 1];
+  gd.rpm[i] = gd.rpm[i] * (ratioNew / ratioOld);
+  if (gd.rpm[i] < car.idleRpm) gd.rpm[i] = car.idleRpm;
+  gd.gear[i] = newGear;
+  gd.timeAtLimiterS[i] = 0;
+}
+
 function tickRacing(gd, balance, dt) {
+  // Process shift taps (consume the edge flag)
+  for (let i = 0; i < NUM_CARS; i++) {
+    if (gd.inputShiftPressEdge[i]) {
+      gd.inputShiftPressEdge[i] = 0;
+      handleShiftTap(gd, balance, i);
+    }
+  }
   for (let i = 0; i < NUM_CARS; i++) {
     if (gd.finished[i] || gd.blown[i]) continue;
     stepCar(gd, balance, i, dt);

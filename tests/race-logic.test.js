@@ -70,3 +70,29 @@ test('physics: car finishes 1/4 mile in expected time window', () => {
   assert.ok(gd.finished[0], 'car should have finished');
   assert.ok(gd.finishTimeS[0] < 30, `finishTime too high: ${gd.finishTimeS[0]}`);
 });
+
+test('shift: tap shift in racing upshifts and drops RPM', () => {
+  const gd = allocGameData(balance);
+  resetRace(gd, balance, 1);
+  gd.raceState = 'racing';
+  gd.gear[0] = 1;
+  gd.rpm[0] = 6500;
+  gd.inputGas[0] = 1;
+  gd.inputShiftPressEdge[0] = 1;
+  tickRace(gd, balance, FIXED_DT);
+  assert.equal(gd.gear[0], 2, 'should be in gear 2');
+  const expected = 6500 * (balance.cars[0].gearRatios[1] / balance.cars[0].gearRatios[0]);
+  assert.ok(Math.abs(gd.rpm[0] - expected) < 200,
+    `RPM after upshift expected ~${expected.toFixed(0)} got ${gd.rpm[0].toFixed(0)}`);
+});
+
+test('shift: tap shift in gear 4 does nothing', () => {
+  const gd = allocGameData(balance);
+  resetRace(gd, balance, 1);
+  gd.raceState = 'racing';
+  gd.gear[0] = 4;
+  gd.rpm[0] = 6500;
+  gd.inputShiftPressEdge[0] = 1;
+  tickRace(gd, balance, FIXED_DT);
+  assert.equal(gd.gear[0], 4);
+});
