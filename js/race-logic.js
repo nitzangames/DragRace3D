@@ -6,7 +6,7 @@ import {
 import { blowThresholdReached } from './shift-scoring.js';
 import { aiSample } from './ai.js';
 import { playShift, playBlow, playTreeBeep, playGreenBeep } from './audio.js';
-import { hapticShift, hapticBlow, hapticJumpStart } from './haptics.js';
+import { hapticShift, hapticBlow, hapticJumpStart, hapticAmber, hapticGreen, hapticLimiter } from './haptics.js';
 
 const INTRO_DURATION_S = 2.0;
 const STAGING_HOLD_DURATION_S = 0.5; // player must hold both for 0.5s before tree
@@ -93,6 +93,7 @@ function tickTree(gd, balance, dt) {
   // Beep on each new amber the player sees light up
   if (ambers > (gd._lastAmbersBeeped | 0) && ambers <= TREE_AMBER_COUNT) {
     playTreeBeep();
+    hapticAmber();
     gd._lastAmbersBeeped = ambers;
   }
   // Only the player can jump (AI is forced-held by tickStaging/tickTree)
@@ -113,6 +114,7 @@ function tickTree(gd, balance, dt) {
   if (t >= greenAtT && gd.treeGreenAtS === 0) {
     gd.treeGreenAtS = gd.raceTimeS;
     playGreenBeep(); // distinct higher-pitched GO cue
+    hapticGreen();
     gd.raceState = 'launching';
   }
 }
@@ -279,6 +281,21 @@ function stepCar(gd, balance, i, dt) {
   // in/out of redline rapidly, this could mask blow-ups — revisit then.
   if (gd.rpm[i] >= car.redlineRpm) gd.timeAtLimiterS[i] += dt;
   else gd.timeAtLimiterS[i] = 0;
+  // Player-only haptic warning while sitting on the limiter. Edge-fires
+  // immediately on entry (`timeAtLimiterS` just crossed 0 → >0 this frame),
+  // then pulses every 150ms thereafter so the user feels the danger
+  // building as they approach the blow threshold.
+  if (i === PLAYER_CAR_IDX) {
+    if (gd.timeAtLimiterS[i] > 0) {
+      const last = gd._lastLimiterFireT || 0;
+      if (last === 0 || (gd.raceTimeS - last) >= 0.15) {
+        hapticLimiter();
+        gd._lastLimiterFireT = gd.raceTimeS;
+      }
+    } else {
+      gd._lastLimiterFireT = 0;
+    }
+  }
   if (blowThresholdReached(gd.timeAtLimiterS[i], BLOW_THRESHOLD_S)) {
     gd.blown[i] = 1;
     if (i === PLAYER_CAR_IDX) { playBlow(); hapticBlow(); }

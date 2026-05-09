@@ -9,7 +9,7 @@ import { buildTachSVG } from './tach.js';
 import { resetEffects, updateEffects } from './effects.js';
 import { loadCareer, saveCareer, clearCareer } from './save.js';
 import { initAudio, setMuted, setVolume, suspendAudio, resumeAudio, startEngine, stopEngine, updateEngine } from './audio.js';
-import { setHapticsEnabled } from './haptics.js';
+import { setHapticsEnabled, hapticTap, hapticPurchase } from './haptics.js';
 import { newCareer, addOwnedCar, removeOwnedCar, spendGold, addGold, recordWin, recordLoss, setCurrentCar } from './career.js';
 import { renderFirstCarPicker, resetFirstCarPicker, buildOwnedCarInstance, renderCareerHome, buildRaceBalance, buildCareerQuickRaceBalance, pickEnvForCareerRace } from './career-flow.js';
 import { applyEnvPreset } from './env-builder.js';
@@ -339,6 +339,7 @@ async function initTitleButtons() {
       const ok = window.confirm(`Buy ${pack.gold.toLocaleString()}g for ${pack.cost.toLocaleString()} NBucks?`);
       if (!ok) return;
       careerState = applyPurchase(careerState, pack);
+      hapticPurchase();
       await saveCareer(careerState);
       refreshTopBar();
       openShop(); // re-render with updated balance
@@ -529,6 +530,7 @@ async function onInstallPart(slot, tier) {
   const price = balance.parts[slot][tier].price;
   if (careerState.gold < price) return;
   careerState = spendGold(careerState, price);
+  hapticPurchase();
   refreshTopBar();
   // Update the owned-car instance's parts
   const idx = careerState.ownedCars.findIndex(c => c.carId === activeOwnedCar.carId);
@@ -599,6 +601,17 @@ async function onSetCurrent() {
 
 initTitleButtons();
 
+// Global tap haptic — fires on any UI button press, except the in-race
+// GAS / SHIFT controls (which have their own race-specific feedback). We
+// listen on pointerdown rather than click so the buzz lines up with the
+// finger-down moment, which feels noticeably more responsive on touch.
+document.body.addEventListener('pointerdown', (e) => {
+  const btn = e.target && e.target.closest && e.target.closest('button, .tab');
+  if (!btn) return;
+  if (btn.id === 'gas-button' || btn.id === 'shift-button') return;
+  hapticTap();
+}, true);
+
 document.getElementById('btn-career-garage').addEventListener('click', () => onGarage());
 document.getElementById('btn-next-race').addEventListener('click', () => onNextRace());
 document.getElementById('btn-career-quick-race').addEventListener('click', () => onCareerQuickRace());
@@ -626,6 +639,7 @@ async function onBuyCar(carId) {
   if (careerState.gold < car.price) return;
   careerState = spendGold(careerState, car.price);
   careerState = addOwnedCar(careerState, buildOwnedCarInstance(carId));
+  hapticPurchase();
   await saveCareer(careerState);
   renderGarage(careerState, onGarageCarPick);
   show('screen-garage');
