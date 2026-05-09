@@ -115,12 +115,16 @@ export function buildBleachers(parent, T) {
       col.castShadow = true;
       b.add(col);
     }
-    // Single diagonal from front-bottom to back-top (no full X). With the
-    // front poles removed, the back-to-front-top brace had nothing to
-    // anchor against, so it's gone too.
+    // Single diagonal from ground-front (z=-2, y=0) to back-column-top
+    // (z=+2, y=8). Δy=8 over Δz=4 → angle from vertical = atan(0.5) ≈
+    // 26.6°, which matches the slope of the stepped planks. Earlier
+    // π/4 (45°) was too shallow and the brace visibly disagreed with
+    // the staircase rising behind it.
+    const braceAngle = Math.atan(0.5);
     for (const cdx of [-7, 7]) {
       const d1 = new T.Mesh(new T.BoxGeometry(0.18, 9, 0.18), frameMat);
-      d1.position.set(cdx, 4, 0); d1.rotation.x = Math.PI / 4;
+      d1.position.set(cdx, 4, 0);
+      d1.rotation.x = braceAngle;
       b.add(d1);
     }
     for (let row = 0; row < 5; row++) {
