@@ -4,7 +4,7 @@ import { allocGameData, resetRace } from './gameData.js';
 import { tickRace } from './race-logic.js';
 import { initInput } from './input.js';
 import { buildRaceScene, rebuildCarsInScene, renderFrame } from './renderer3d.js';
-import { createChaseCamera, updateChaseCamera } from './camera3d.js';
+import { createChaseCamera, updateChaseCamera, triggerShiftJolt } from './camera3d.js';
 import { buildTachSVG } from './tach.js';
 import { resetEffects, updateEffects } from './effects.js';
 import { loadCareer, saveCareer, clearCareer } from './save.js';
@@ -60,6 +60,9 @@ let gameData = allocGameData(balance);
 let scene, cars, env, tachUpdater;
 let acc = 0; let lastT = performance.now();
 let started = false;
+// Tracks last-frame player gear so the loop can edge-detect upshifts and
+// fire camera shift-jolts. Starts at 1 (matching resetRace's initial gear).
+let _prevPlayerGear = 1;
 
 const ghostRecorder = createGhostRecorder();
 let ghostPlayer = null;
@@ -780,7 +783,14 @@ function loop(now) {
     document.getElementById('hud-speed').textContent =
       Math.round(gameData.velMs[0] * 2.237) + ' mph';
     updateEffects(gameData, dt);
-    updateChaseCamera(camera, gameData);
+    // Detect player upshifts and fire a one-shot camera jolt (shake + extra
+    // trail-behind that decays). Compares against the previous frame's gear;
+    // resetRace puts the player back in 1, so this won't false-trigger on
+    // a fresh race even if _prevPlayerGear was 4 from the last race.
+    const curGear = gameData.gear[PLAYER_CAR_IDX];
+    if (curGear > _prevPlayerGear) triggerShiftJolt();
+    _prevPlayerGear = curGear;
+    updateChaseCamera(camera, gameData, dt);
     renderFrame(renderer, scene, camera, cars, env, gameData, dt);
     // Results screen appears the moment the PLAYER is done (finished, blown,
     // or jump-started). Opponent may still be racing — their ET updates live
