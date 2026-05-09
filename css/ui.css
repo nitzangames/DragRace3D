@@ -17,6 +17,12 @@ html, body {
   position: relative;
   width:  min(100vw, calc(100dvh * 9 / 16));
   height: min(100dvh, calc(100vw * 16 / 9));
+  /* Make the container a query container so child fonts can scale via
+   * cqi (1cqi = 1% of inline-size). The whole UI was tuned at the 1080-px
+   * design width; cqi-based clamp() lets it shrink on phones (~375 px
+   * wide) and stay capped at the design size on big monitors. */
+  container-type: inline-size;
+  container-name: game;
 }
 
 #game-container canvas#game-canvas {
@@ -40,7 +46,7 @@ html, body {
   background: rgba(8, 12, 20, 0.85);
 }
 #ui .screen.hidden { display: none; }
-.game-title { font-size: 96px; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 48px; }
+.game-title { font-size: clamp(28px, 8.9cqi, 96px); font-weight: 800; letter-spacing: 0.04em; margin-bottom: 48px; }
 
 /* Vertically stacked menu buttons inside a `.screen` container all share the
  * same width regardless of primary/secondary variant. Group of related nav
@@ -56,7 +62,7 @@ html, body {
   text-align: center;
 }
 .btn-primary {
-  font-size: 44px; font-weight: 700; padding: 18px 56px;
+  font-size: clamp(16px, 4.1cqi, 44px); font-weight: 700; padding: clamp(7px, 1.7cqi, 18px) clamp(20px, 5.2cqi, 56px);
   background: #d65a3a; border: 3px solid #ff8a5a; color: #fff; border-radius: 14px;
   cursor: pointer; touch-action: manipulation;
 }
@@ -129,7 +135,7 @@ html, body {
 .hud-chip {
   position: absolute;
   color: #fff;
-  font-size: 22px;
+  font-size: clamp(11px, 2cqi, 22px);
   font-weight: 600;
   background: rgba(0,0,0,0.45);
   padding: 6px 12px;
@@ -176,7 +182,7 @@ html, body {
 
 /* Stacked button labels: prompt hint above, big main label, small key hint */
 .btn-hint {
-  font-size: 22px; font-weight: 700; letter-spacing: 3px;
+  font-size: clamp(11px, 2cqi, 22px); font-weight: 700; letter-spacing: 3px;
   min-height: 26px; opacity: 0.9; text-transform: uppercase;
   text-align: center;
 }
@@ -186,11 +192,11 @@ html, body {
   to   { opacity: 1.0; }
 }
 .btn-main {
-  font-size: 56px; font-weight: 800; letter-spacing: 4px;
+  font-size: clamp(20px, 5.2cqi, 56px); font-weight: 800; letter-spacing: 4px;
   line-height: 1.0;
 }
 .btn-key {
-  font-size: 14px; font-weight: 600; opacity: 0.55;
+  font-size: clamp(9px, 1.3cqi, 14px); font-weight: 600; opacity: 0.55;
   letter-spacing: 1.5px;
 }
 /* Hide the keyboard-key hint on touch devices */
@@ -199,7 +205,7 @@ html, body {
 }
 
 .btn-secondary {
-  font-size: 32px; font-weight: 600; padding: 14px 40px; margin-top: 14px;
+  font-size: clamp(14px, 3cqi, 32px); font-weight: 600; padding: clamp(6px, 1.3cqi, 14px) clamp(16px, 3.7cqi, 40px); margin-top: 14px;
   background: transparent; border: 2px solid #888; color: #fff; border-radius: 12px;
   cursor: pointer;
   font-family: system-ui;
@@ -243,19 +249,19 @@ html, body {
 #top-bar-right { justify-self: end; display: flex; align-items: center; gap: 12px; }
 #top-bar-title {
   justify-self: center;
-  font-size: 20px; font-weight: 700; letter-spacing: 0.06em;
+  font-size: clamp(13px, 1.85cqi, 20px); font-weight: 700; letter-spacing: 0.06em;
   text-align: center;
 }
-#top-bar-gold { font-size: 20px; color: #ffd14a; font-weight: 700; }
+#top-bar-gold { font-size: clamp(13px, 1.85cqi, 20px); color: #ffd14a; font-weight: 700; }
 .top-bar-btn {
   background: transparent; border: 2px solid #888; color: #fff;
   border-radius: 8px; padding: 4px 12px; cursor: pointer;
-  font-size: 22px; font-family: system-ui; line-height: 1;
+  font-size: clamp(13px, 2cqi, 22px); font-family: system-ui; line-height: 1;
   touch-action: manipulation;
 }
 .top-bar-btn.hidden { display: none; }
 .top-bar-btn:active { background: #444; }
-#top-bar-back { font-size: 28px; padding: 2px 14px; }
+#top-bar-back { font-size: clamp(16px, 2.6cqi, 28px); padding: 2px 14px; }
 
 /* Push menu screens below the top bar so titles aren't hidden under it.
  * Excludes #screen-title (no top bar) and #hud (race overlay). */
@@ -290,12 +296,12 @@ html, body {
   font-family: system-ui;
 }
 .car-tile:active { border-color: #ff8a5a; }
-.car-tile h3 { font-size: 22px; margin-bottom: 6px; }
-.car-tile .stats { font-size: 14px; opacity: 0.7; line-height: 1.4; }
-.car-tile .price { font-size: 18px; color: #ffd14a; margin-top: 8px; font-weight: 700; }
+.car-tile h3 { font-size: clamp(13px, 2cqi, 22px); margin-bottom: 6px; }
+.car-tile .stats { font-size: clamp(9px, 1.3cqi, 14px); opacity: 0.7; line-height: 1.4; }
+.car-tile .price { font-size: clamp(11px, 1.7cqi, 18px); color: #ffd14a; margin-top: 8px; font-weight: 700; }
 .car-tile.affordable { border-color: #2aa050; }
 .car-tile.unaffordable { opacity: 0.45; cursor: not-allowed; }
-.subtitle { color: #ccc; opacity: 0.8; margin-bottom: 20px; font-size: 18px; }
+.subtitle { color: #ccc; opacity: 0.8; margin-bottom: 20px; font-size: clamp(11px, 1.7cqi, 18px); }
 
 .career-stats {
   background: #1a1d22; border-radius: 12px;
@@ -303,7 +309,7 @@ html, body {
 }
 .career-row {
   display: flex; justify-content: space-between;
-  font-size: 22px; padding: 6px 0;
+  font-size: clamp(13px, 2cqi, 22px); padding: 6px 0;
   font-family: system-ui;
 }
 .career-row strong { color: #fff; }
@@ -315,7 +321,7 @@ html, body {
   box-sizing: border-box;
 }
 .tab {
-  flex: 1; padding: 10px 0; font-size: 18px; font-weight: 700;
+  flex: 1; padding: 10px 0; font-size: clamp(11px, 1.7cqi, 18px); font-weight: 700;
   background: #1a1d22; color: #888; border: 2px solid #333;
   border-radius: 8px; cursor: pointer;
   font-family: system-ui;
@@ -354,7 +360,7 @@ html, body {
 .garage-arrow {
   background: #1a1d22; color: #fff; border: 2px solid #555;
   border-radius: 10px; padding: 4px 14px;
-  font-size: 40px; font-family: system-ui; line-height: 1;
+  font-size: clamp(22px, 3.7cqi, 40px); font-family: system-ui; line-height: 1;
   cursor: pointer; touch-action: manipulation;
   flex-shrink: 0;
 }
@@ -369,12 +375,12 @@ html, body {
   text-align: center; color: #fff; font-family: system-ui;
   margin: 12px 0;
 }
-.garage-info h3 { font-size: 28px; margin-bottom: 4px; }
-.garage-info .meta { font-size: 16px; opacity: 0.75; }
+.garage-info h3 { font-size: clamp(15px, 2.6cqi, 28px); margin-bottom: 4px; }
+.garage-info .meta { font-size: clamp(10px, 1.5cqi, 16px); opacity: 0.75; }
 .garage-info .current-tag {
   display: inline-block; margin-top: 6px;
   padding: 2px 10px; background: #2aa050; color: #fff;
-  border-radius: 6px; font-size: 14px; font-weight: 700;
+  border-radius: 6px; font-size: clamp(9px, 1.3cqi, 14px); font-weight: 700;
   letter-spacing: 0.05em;
 }
 
