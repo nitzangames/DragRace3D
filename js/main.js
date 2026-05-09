@@ -154,10 +154,53 @@ function refreshTopBar() {
   if (visible) updateTopBar(visible.id);
 }
 
+/** Walk a three.js scene graph and free every Geometry / Material /
+ *  Texture / shadow-map. Three.js doesn't auto-dispose when a node is
+ *  removed; without this the GPU buffers stick around until the JS
+ *  garbage collector decides to run, which on mobile can be never.
+ *  Called between races so each rebuild starts from a clean GPU state. */
+function disposeScene(root) {
+  root.traverse((obj) => {
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const m of mats) {
+        if (m.map) m.map.dispose();
+        if (m.envMap) m.envMap.dispose();
+        m.dispose();
+      }
+    }
+    // Directional/spot lights ship with their own shadow render target +
+    // shadow camera — release those textures too.
+    if (obj.shadow && obj.shadow.map) {
+      obj.shadow.map.dispose();
+      obj.shadow.map = null;
+    }
+  });
+  // Clear children pointers so any lingering refs can't keep the tree alive.
+  while (root.children.length > 0) root.remove(root.children[0]);
+}
+
+// Diagnostic: log when the WebGL context is lost or restored. Mobile
+// Safari can drop the context under memory pressure, after which all
+// renderer.render() calls silently fail. If a player reports a crash,
+// these logs in the console (or a remote debug session) will tell us.
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  console.warn('[dr3d] WebGL context LOST', e);
+}, false);
+canvas.addEventListener('webglcontextrestored', (e) => {
+  console.warn('[dr3d] WebGL context restored', e);
+}, false);
+
 function startRace() {
   // Rebuild scene every race — player may have switched cars / classes.
+  // Aggressively dispose the previous scene's GPU resources (geometries,
+  // materials, textures, shadow maps) before throwing it away. Mobile
+  // Safari has a tight per-tab memory ceiling and was silently killing the
+  // tab after a few races as un-disposed buffers piled up in GPU memory.
   if (scene) {
-    while (scene.children.length > 0) scene.remove(scene.children[0]);
+    disposeScene(scene);
     scene = null;
   }
   const envId = quickRaceMode ? quickRaceEnvId : pickEnvForCareerRace(careerState || { classIndex: 0 });
