@@ -33,9 +33,16 @@ export function boardKey(week) { return ROTW_BOARD_PREFIX + week; }
 export async function submitRun(week, etS, ghostBytes) {
   const sdk = getSDK();
   if (!sdk || !sdk.submitScore) return null;
+  // PlaySDK.submitScore(board, value, direction, metadata, attachment).
+  // Drag-race elapsed time is lower-is-better → direction 'asc'.
+  // Ghost replay rides as the attachment, NOT in the direction slot
+  // (was getting silently rejected with HTTP 400 before — score never saved).
   try {
-    return await sdk.submitScore(boardKey(week), etS, ghostBytes || null);
-  } catch (_) { return null; }
+    return await sdk.submitScore(boardKey(week), etS, 'asc', {}, ghostBytes || null);
+  } catch (e) {
+    console.warn('submitRun error:', e && e.message);
+    return null;
+  }
 }
 
 export async function fetchTop(week, limit) {

@@ -973,6 +973,9 @@ function showResults() {
     if (!careerState) return;
     // Standalone quick race (off the title screen) doesn't pay career gold.
     if (quickRaceMode && !_careerQuickRace) return;
+    // Race-of-the-week is its own track with its own results UI (no res-gold
+    // element) and doesn't pay career gold either.
+    if (rotwActive) return;
     const won = gameData.winnerCarIdx === PLAYER_CAR_IDX;
     const perfectRT = gameData.rtS[PLAYER_CAR_IDX] > 0 && gameData.rtS[PLAYER_CAR_IDX] < 0.100;
     const reward = computeRaceReward({
