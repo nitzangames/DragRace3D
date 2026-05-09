@@ -32,8 +32,15 @@ import { SHOP_PACKS } from './balance.js';
 
 const canvas = document.getElementById('game-canvas');
 const T = window.THREE;
-const renderer = new T.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+// Mobile-Safari memory budget: the canvas attr is already 1080x1920, so
+// applying device-pixel-ratio on top would balloon the framebuffer to
+// ~16M pixels (and antialias quadruples that with MSAA). On phones the
+// tab gets OOM-killed before the first frame. Force DPR=1 and disable
+// MSAA — the canvas's own resolution is high enough for crisp edges,
+// and shadows / lighting do most of the visual work anyway.
+const _isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '');
+const renderer = new T.WebGLRenderer({ canvas, antialias: !_isMobile });
+renderer.setPixelRatio(_isMobile ? 1 : Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(canvas.width, canvas.height, false);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = T.PCFSoftShadowMap;

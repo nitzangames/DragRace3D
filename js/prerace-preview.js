@@ -138,8 +138,9 @@ export function mountPreracePreview(parent, raceBalance, envId) {
   canvas.width = 720; canvas.height = 320;
   parent.appendChild(canvas);
 
-  const renderer = new T.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '');
+  const renderer = new T.WebGLRenderer({ canvas, antialias: !isMobile });
+  renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(canvas.width, canvas.height, false);
 
   const scene = new T.Scene();

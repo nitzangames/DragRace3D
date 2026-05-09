@@ -78,8 +78,9 @@ export function mountPaintPreview(parent, archetype, paint) {
   canvas.width = 600; canvas.height = 280;
   parent.appendChild(canvas);
 
-  const renderer = new T.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '');
+  const renderer = new T.WebGLRenderer({ canvas, antialias: !isMobile, alpha: true });
+  renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(canvas.width, canvas.height, false);
 
   const scene = new T.Scene();
