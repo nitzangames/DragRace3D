@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Drag Race 3D — Stadium Grandstand Variants</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  html,body { margin:0; padding:0; height:100%; background:#0a0e14; color:#fff; font-family:system-ui; overflow:hidden; }
+  #root { position:fixed; inset:0; }
+  canvas { display:block; }
+  #panel {
+    position:fixed; top:16px; left:50%; transform:translateX(-50%);
+    background:rgba(8,12,20,0.85); border:1px solid #2a2f3a; border-radius:10px;
+    padding:8px; display:flex; gap:6px; z-index:10;
+  }
+  .mock-btn {
+    background:#1a1d22; color:#fff; border:2px solid #555; border-radius:8px;
+    padding:8px 14px; font:600 13px system-ui; cursor:pointer;
+    letter-spacing:0.04em; touch-action:manipulation;
+  }
+  .mock-btn.active { border-color:#2aa050; background:#1a3520; }
+  .mock-btn:hover:not(.active) { border-color:#888; }
+  #info {
+    position:fixed; bottom:16px; left:50%; transform:translateX(-50%);
+    background:rgba(8,12,20,0.85); border:1px solid #2a2f3a; border-radius:10px;
+    padding:10px 16px; max-width:680px; font-size:14px; line-height:1.4;
+    text-align:center;
+  }
+  #info .label { color:#888; font-size:11px; letter-spacing:0.08em; margin-bottom:4px; }
+  #info .desc { color:#fff; }
+  #back {
+    position:fixed; top:16px; left:16px; z-index:10;
+    background:transparent; border:2px solid #888; color:#fff;
+    border-radius:8px; padding:6px 12px; font:600 14px system-ui; cursor:pointer;
+  }
+</style>
+</head>
+<body>
+<a id="back" href="./index.html" style="text-decoration:none;display:inline-block;">‹ THEMES</a>
+<div id="root"></div>
+<div id="panel">
+  <button class="mock-btn active" data-stand="amphitheater">A · AMPHITHEATER</button>
+  <button class="mock-btn" data-stand="vip">B · MULTI-LEVEL VIP</button>
+  <button class="mock-btn" data-stand="pavilion">C · COVERED PAVILION</button>
+  <button class="mock-btn" data-stand="bleachers">D · STEEL BLEACHERS</button>
+</div>
+<div id="info">
+  <div class="label">STADIUM GRANDSTAND VARIANT</div>
+  <div id="info-desc" class="desc"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const T = window.THREE;
+const root = document.getElementById('root');
+const renderer = new T.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+function resize() { renderer.setSize(window.innerWidth, window.innerHeight); }
+resize();
+window.addEventListener('resize', resize);
+root.appendChild(renderer.domElement);
+
+let scene, camera, sceneryGroup;
+const orbitCenter = new T.Vector3(0, 3, -55);
+const orbitRadius = 42;
+const orbitHeight = 13;
+let orbitAngle = 0.6;
+
+const crowdGeo = new T.BoxGeometry(0.55, 0.6, 0.45);
+const crowdMats = [0xff5040, 0x4060ff, 0xffd14a, 0x40c060, 0xeeeeee, 0xc040c0]
+  .map((c) => new T.MeshLambertMaterial({ color: c }));
+function crowdAt(parent, x, y, z) {
+  const m = crowdMats[Math.floor(Math.random() * 6)];
+  const c = new T.Mesh(crowdGeo, m);
+  c.position.set(x, y, z);
+  parent.add(c);
+}
+
+function buildBaseScene() {
+  scene = new T.Scene();
+  scene.background = new T.Color(0x9bb8d8);
+  scene.fog = new T.Fog(0x9bb8d8, 60, 380);
+
+  scene.add(new T.AmbientLight(0xa8b8d8, 0.55));
+  scene.add(new T.HemisphereLight(0xa8c8ff, 0x3a3020, 0.4));
+  const sun = new T.DirectionalLight(0xfff0d0, 1.1);
+  sun.position.set(60, 90, 40);
+  scene.add(sun);
+
+  // Strip + dirt + tree + cars (same baseline as themes mockup)
+  const stripCanvas = document.createElement('canvas');
+  stripCanvas.width = 256; stripCanvas.height = 1024;
+  const sc = stripCanvas.getContext('2d');
+  sc.fillStyle = '#2d2d31'; sc.fillRect(0, 0, 256, 1024);
+  for (let i = 0; i < 1500; i++) {
+    sc.fillStyle = `rgba(255,255,255,${(Math.random()*0.06).toFixed(3)})`;
+    sc.fillRect(Math.random()*256, Math.random()*1024, 2, 2);
+  }
+  sc.fillStyle = '#d6b22f'; sc.fillRect(126, 0, 4, 1024);
+  sc.fillStyle = '#dddddd'; sc.fillRect(8, 0, 4, 1024); sc.fillRect(244, 0, 4, 1024);
+  const stripTex = new T.CanvasTexture(stripCanvas);
+  stripTex.wrapS = stripTex.wrapT = T.RepeatWrapping;
+  stripTex.repeat.set(1, 60); stripTex.anisotropy = 4;
+  const strip = new T.Mesh(new T.PlaneGeometry(15, 700),
+    new T.MeshLambertMaterial({ map: stripTex }));
+  strip.rotation.x = -Math.PI/2; strip.position.set(0, 0, -300);
+  scene.add(strip);
+
+  const dirt = new T.Mesh(new T.PlaneGeometry(300, 700),
+    new T.MeshLambertMaterial({ color: 0x6a5a3c }));
+  dirt.rotation.x = -Math.PI/2; dirt.position.set(0, -0.05, -300);
+  scene.add(dirt);
+
+  // Tree
+  const tree = new T.Group();
+  const post = new T.Mesh(new T.BoxGeometry(0.4, 6, 0.4),
+    new T.MeshLambertMaterial({ color: 0x202020 }));
+  post.position.y = 3; tree.add(post);
+  for (let i = 0; i < 5; i++) for (const sx of [-1, 1]) {
+    const c = i < 3 ? 0xffaa00 : (i === 4 ? 0x22ee48 : 0x551100);
+    const bulb = new T.Mesh(new T.SphereGeometry(0.22, 12, 8),
+      new T.MeshBasicMaterial({ color: c }));
+    bulb.position.set(sx*0.5, 5.5 - i*0.9, 0);
+    tree.add(bulb);
+  }
+  tree.position.set(0, 0, -1.5);
+  scene.add(tree);
+
+  for (const cx of [-2.5, 2.5]) {
+    const car = new T.Group();
+    const body = new T.Mesh(new T.BoxGeometry(1.7, 0.9, 4),
+      new T.MeshLambertMaterial({ color: cx > 0 ? 0xc83a26 : 0x4d6dd6 }));
+    body.position.y = 0.55; car.add(body);
+    const cabin = new T.Mesh(new T.BoxGeometry(1.55, 0.95, 2),
+      new T.MeshLambertMaterial({ color: 0x222222 }));
+    cabin.position.set(0, 1.45, -0.05); car.add(cabin);
+    car.position.set(cx, 0, 2);
+    scene.add(car);
+  }
+
+  sceneryGroup = new T.Group();
+  scene.add(sceneryGroup);
+
+  camera = new T.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 600);
+}
+
+// ===========================================================================
+// VARIANT A: AMPHITHEATER — single long sloped tier wrapping the strip
+// ===========================================================================
+function buildAmphitheater() {
+  const g = sceneryGroup;
+  const concreteMat = new T.MeshLambertMaterial({ color: 0x9a9a96 });
+  const stepLight = new T.MeshLambertMaterial({ color: 0xb0b0ac });
+  const stepDark = new T.MeshLambertMaterial({ color: 0x8a8a86 });
+  const treadMat = new T.MeshLambertMaterial({ color: 0xc0c0bc });
+
+  for (const side of [-1, 1]) {
+    const startZ = -10, endZ = -300;
+    const length = Math.abs(endZ - startZ);
+    const midZ = (startZ + endZ) / 2;
+
+    // 8 stepped concrete risers — each row is 1m tall and 1.2m deep,
+    // stepping back from the strip. Front row at x=±18, back row at x=±26.4.
+    const stepHeight = 1.0, stepDepth = 1.2;
+    for (let row = 0; row < 8; row++) {
+      const rowY = stepHeight * row;             // bottom of riser
+      const rowX = side * (18 + row * stepDepth);
+      // Vertical riser face (concrete)
+      const riser = new T.Mesh(
+        new T.BoxGeometry(0.4, stepHeight, length),
+        row % 2 === 0 ? stepLight : stepDark,
+      );
+      riser.position.set(rowX, rowY + stepHeight / 2, midZ);
+      g.add(riser);
+      // Horizontal tread — the surface people sit on
+      const tread = new T.Mesh(
+        new T.BoxGeometry(stepDepth, 0.18, length),
+        treadMat,
+      );
+      tread.position.set(rowX + side * stepDepth / 2, rowY + stepHeight, midZ);
+      g.add(tread);
+      // Crowd seated on each tread
+      for (let cz = startZ - 1; cz >= endZ + 1; cz -= 1.0) {
+        if (Math.random() < 0.85) {
+          crowdAt(g, rowX + side * stepDepth / 2,
+                     rowY + stepHeight + 0.3, cz);
+        }
+      }
+    }
+
+    // Back concrete wall behind the top row
+    const back = new T.Mesh(new T.BoxGeometry(1.5, 11, length), concreteMat);
+    back.position.set(side * (18 + 8 * stepDepth + 0.8), 5.5, midZ);
+    g.add(back);
+
+    // Stair entrances every 50m (gap in the seating)
+    for (let z = startZ - 5; z >= endZ; z -= 50) {
+      const stair = new T.Mesh(new T.BoxGeometry(8, 0.1, 4),
+        new T.MeshLambertMaterial({ color: 0x404040 }));
+      stair.position.set(side * 22, 0.05, z); g.add(stair);
+    }
+  }
+
+  // Top-rim flag poles. Pole is vertical; a horizontal cross-arm reaches
+  // outward from the pole's top and the flag hangs from that arm so they
+  // visibly connect (rather than floating beside the pole with a gap).
+  const poleMat = new T.MeshLambertMaterial({ color: 0x303030 });
+  for (let z = -20; z >= -290; z -= 30) {
+    for (const side of [-1, 1]) {
+      const pole = new T.Mesh(new T.BoxGeometry(0.2, 5, 0.2), poleMat);
+      pole.position.set(side * 30, 11, z); g.add(pole);
+      // Horizontal cross-arm extending outward from the top of the pole
+      const arm = new T.Mesh(new T.BoxGeometry(2.2, 0.12, 0.12), poleMat);
+      arm.position.set(side * 31.1, 13.4, z); g.add(arm);
+      // Flag hanging from the arm — its top edge sits just under the arm
+      const flag = new T.Mesh(new T.PlaneGeometry(2, 1.2),
+        new T.MeshLambertMaterial({
+          color: side > 0 ? 0xc83a26 : 0x2a8fd4, side: T.DoubleSide,
+        }));
+      flag.position.set(side * 31.1, 12.7, z); g.add(flag);
+    }
+  }
+}
+
+// ===========================================================================
+// VARIANT B: MULTI-LEVEL VIP — 3 setback tiers, glass VIP boxes on top
+// ===========================================================================
+function buildVIP() {
+  const g = sceneryGroup;
+  const baseMat = new T.MeshLambertMaterial({ color: 0xc0c0bc });
+  const tier2Mat = new T.MeshLambertMaterial({ color: 0xa0a0a0 });
+  const tier3Mat = new T.MeshLambertMaterial({ color: 0x8a8a8e });
+  const glassMat = new T.MeshLambertMaterial({ color: 0x3a4a6a, transparent: true, opacity: 0.6 });
+  const frameMat = new T.MeshLambertMaterial({ color: 0x222222 });
+
+  for (let s = 0; s < 14; s++) {
+    const sx = -16 + (s % 2) * 32;
+    const sz = -20 - s * 18;
+    // Tier 1 (closest to strip, lowest)
+    const t1 = new T.Mesh(new T.BoxGeometry(15, 3, 4), baseMat);
+    t1.position.set(sx, 1.5, sz); g.add(t1);
+    // Tier 2 (set back behind)
+    const t2 = new T.Mesh(new T.BoxGeometry(15, 4, 4), tier2Mat);
+    t2.position.set(sx + (sx > 0 ? 4 : -4), 5, sz); g.add(t2);
+    // Tier 3 (set back further, taller)
+    const t3 = new T.Mesh(new T.BoxGeometry(15, 4, 4), tier3Mat);
+    t3.position.set(sx + (sx > 0 ? 8 : -8), 9.5, sz); g.add(t3);
+    // VIP glass box on top of tier 3
+    const vipFrame = new T.Mesh(new T.BoxGeometry(15.2, 3.5, 4.2), frameMat);
+    vipFrame.position.set(sx + (sx > 0 ? 8 : -8), 13.5, sz); g.add(vipFrame);
+    const vipGlass = new T.Mesh(new T.BoxGeometry(14.8, 3.0, 4.0), glassMat);
+    vipGlass.position.set(sx + (sx > 0 ? 8 : -8), 13.5, sz); g.add(vipGlass);
+    // Crowd on tiers 1 and 2 only (VIPs are hidden behind glass)
+    for (let cx = -2.5; cx <= 2.5; cx += 1) {
+      for (let cz = -1; cz <= 1; cz += 1) {
+        if (Math.random() < 0.85) crowdAt(g, sx + cx, 3.3, sz + cz);
+        if (Math.random() < 0.8)
+          crowdAt(g, sx + (sx > 0 ? 4 : -4) + cx, 7.3, sz + cz);
+      }
+    }
+  }
+
+  // Roof canopy across the very top (continuous)
+  const canopy = new T.Mesh(new T.BoxGeometry(60, 0.6, 280),
+    new T.MeshLambertMaterial({ color: 0x2a2f3a }));
+  canopy.position.set(0, 16, -150); g.add(canopy);
+  // Canopy support struts
+  for (let z = -30; z >= -270; z -= 40) {
+    for (const side of [-1, 1]) {
+      const strut = new T.Mesh(new T.BoxGeometry(0.4, 16, 0.4), frameMat);
+      strut.position.set(side * 25, 8, z); g.add(strut);
+    }
+  }
+}
+
+// ===========================================================================
+// VARIANT C: COVERED PAVILION — pitched roof on tall columns
+// ===========================================================================
+function buildPavilion() {
+  const g = sceneryGroup;
+  const seatingMat = new T.MeshLambertMaterial({ color: 0x6a4a30 });
+  const columnMat = new T.MeshLambertMaterial({ color: 0xeeeeee });
+  const roofMat = new T.MeshLambertMaterial({ color: 0xc83a26 });
+  const trimMat = new T.MeshLambertMaterial({ color: 0xffffff });
+
+  for (let s = 0; s < 14; s++) {
+    const sx = -16 + (s % 2) * 32;
+    const sz = -20 - s * 18;
+    // Wooden seating slabs (3 rising rows)
+    for (let row = 0; row < 3; row++) {
+      const seat = new T.Mesh(new T.BoxGeometry(15, 0.4, 1.2), seatingMat);
+      seat.position.set(sx, 1 + row * 0.9, sz - 1 + row * 1);
+      g.add(seat);
+      // Crowd along the row
+      for (let cx = -3; cx <= 3; cx += 0.85) {
+        if (Math.random() < 0.78)
+          crowdAt(g, sx + cx, 1.4 + row * 0.9, sz - 1 + row * 1);
+      }
+    }
+    // Front rail
+    const rail = new T.Mesh(new T.BoxGeometry(15, 0.15, 0.15),
+      new T.MeshLambertMaterial({ color: 0x303030 }));
+    rail.position.set(sx, 1.3, sz - 2); g.add(rail);
+
+    // 4 columns supporting the roof
+    for (const cdx of [-6, -2, 2, 6]) {
+      const col = new T.Mesh(new T.CylinderGeometry(0.25, 0.3, 8, 8), columnMat);
+      col.position.set(sx + cdx, 4.5, sz + 0.2); g.add(col);
+    }
+
+    // Pitched roof — two angled panels meeting at a ridge
+    const roofL = new T.Mesh(new T.BoxGeometry(15, 0.2, 3.2), roofMat);
+    roofL.position.set(sx, 9.5, sz - 1.0); roofL.rotation.x = -0.4; g.add(roofL);
+    const roofR = new T.Mesh(new T.BoxGeometry(15, 0.2, 3.2), roofMat);
+    roofR.position.set(sx, 9.5, sz + 1.0); roofR.rotation.x = 0.4; g.add(roofR);
+    // White ridge cap
+    const ridge = new T.Mesh(new T.BoxGeometry(15.2, 0.18, 0.4), trimMat);
+    ridge.position.set(sx, 10.4, sz); g.add(ridge);
+    // White fascia trim along front of roof
+    const trim = new T.Mesh(new T.BoxGeometry(15.2, 0.3, 0.1), trimMat);
+    trim.position.set(sx, 8.6, sz - 2.4); g.add(trim);
+  }
+
+  // Decorative bunting between pavilions
+  for (let z = -30; z >= -260; z -= 18) {
+    const wire = new T.Mesh(new T.BoxGeometry(0.05, 0.05, 6),
+      new T.MeshBasicMaterial({ color: 0x202020 }));
+    wire.position.set(0, 11, z); g.add(wire);
+    for (let pz = z - 2.5; pz <= z + 2.5; pz += 0.8) {
+      const tri = new T.Mesh(new T.ConeGeometry(0.18, 0.5, 4),
+        new T.MeshBasicMaterial({ color: [0xc83a26, 0xffd14a, 0x2a8fd4][Math.floor(Math.random()*3)] }));
+      tri.position.set(0, 10.5, pz); tri.rotation.z = Math.PI;
+      g.add(tri);
+    }
+  }
+}
+
+// ===========================================================================
+// VARIANT D: STEEL BLEACHERS — open framework with stepped wooden planks
+// ===========================================================================
+function buildBleachers() {
+  const g = sceneryGroup;
+  const frameMat = new T.MeshLambertMaterial({ color: 0x6a6a6a });
+  const plankMat = new T.MeshLambertMaterial({ color: 0x8a6a3a });
+  const railMat = new T.MeshLambertMaterial({ color: 0x404040 });
+
+  // Build one bleacher block as a self-contained sub-group with its long
+  // axis (15m of seating width) along local X, depth (planks stepping up
+  // and away from the strip) along local Z, and the seated crowd facing
+  // the local -Z direction (front rail). Then position + rotate the whole
+  // block to face the strip.
+  function makeBleacher() {
+    const b = new T.Group();
+    // Vertical frame columns
+    for (const cdx of [-7, -3.5, 0, 3.5, 7]) {
+      for (const cdz of [-2, 2]) {
+        const col = new T.Mesh(new T.BoxGeometry(0.25, 8, 0.25), frameMat);
+        col.position.set(cdx, 4, cdz); b.add(col);
+      }
+    }
+    // Diagonal X-braces on the end walls (cdx = ±7)
+    for (const cdx of [-7, 7]) {
+      const diag1 = new T.Mesh(new T.BoxGeometry(0.18, 9, 0.18), frameMat);
+      diag1.position.set(cdx, 4, 0);
+      diag1.rotation.x = Math.PI / 4;
+      b.add(diag1);
+      const diag2 = new T.Mesh(new T.BoxGeometry(0.18, 9, 0.18), frameMat);
+      diag2.position.set(cdx, 4, 0);
+      diag2.rotation.x = -Math.PI / 4;
+      b.add(diag2);
+    }
+    // 5 stepped planks rising in +Z (toward the back of the bleacher)
+    for (let row = 0; row < 5; row++) {
+      const plank = new T.Mesh(new T.BoxGeometry(15, 0.25, 1.0), plankMat);
+      plank.position.set(0, 1.3 + row * 1.3, -1.6 + row * 0.8);
+      b.add(plank);
+      for (let cx = -3; cx <= 3; cx += 0.9) {
+        if (Math.random() < 0.7)
+          crowdAt(b, cx, 1.7 + row * 1.3, -1.6 + row * 0.8);
+      }
+    }
+    // Front rail (low, at -Z) and top rail (back, at +Z)
+    const rail = new T.Mesh(new T.BoxGeometry(15, 0.1, 0.1), railMat);
+    rail.position.set(0, 1.5, -2.4); b.add(rail);
+    const topRail = new T.Mesh(new T.BoxGeometry(15, 0.1, 0.1), railMat);
+    topRail.position.set(0, 8, 2); b.add(topRail);
+    return b;
+  }
+
+  for (let s = 0; s < 14; s++) {
+    const side = (s % 2 === 0) ? -1 : 1;
+    const sx = side * 16;
+    const sz = -20 - s * 18;
+    const block = makeBleacher();
+    block.position.set(sx, 0, sz);
+    // Rotate so the block's long axis runs parallel to the strip (along Z)
+    // and the front rail (local -Z) faces toward the strip on the +X / -X
+    // side. side=-1 → rotate -π/2; side=+1 → rotate +π/2.
+    block.rotation.y = side * Math.PI / 2;
+    g.add(block);
+  }
+
+  // Tall light pylons (stadium floods)
+  for (let z = -40; z >= -260; z -= 60) {
+    for (const side of [-1, 1]) {
+      const pole = new T.Mesh(new T.BoxGeometry(0.5, 16, 0.5), frameMat);
+      pole.position.set(side * 28, 8, z); g.add(pole);
+      for (let f = 0; f < 4; f++) {
+        const ang = (f / 4) * Math.PI * 2;
+        const flood = new T.Mesh(new T.SphereGeometry(0.5, 12, 8),
+          new T.MeshBasicMaterial({ color: 0xfffae0 }));
+        flood.position.set(side * 28 + Math.cos(ang) * 0.7,
+                           16, z + Math.sin(ang) * 0.7);
+        g.add(flood);
+      }
+    }
+  }
+}
+
+const DESCRIPTIONS = {
+  amphitheater:
+    'A · Amphitheater: long continuous sloped tier wrapping the strip, concrete back wall, banner flags along the top rim. Modern motorsport / Formula stadium feel.',
+  vip:
+    'B · Multi-level VIP: 3 stepped concrete tiers, glass-fronted VIP boxes on top, continuous canopy roof. Pro-track / televised-event feel.',
+  pavilion:
+    'C · Covered pavilion: pitched red roof on white columns, wooden bench seating, party-bunting between pavilions. Classic American drag-strip / state fair feel.',
+  bleachers:
+    'D · Steel bleachers: open metal framework with X-braces, stepped wooden planks, tall floodlight pylons. Old-school NHRA / weekend-warrior vibe.',
+};
+
+function setStand(name) {
+  buildBaseScene();
+  if      (name === 'amphitheater') buildAmphitheater();
+  else if (name === 'vip')          buildVIP();
+  else if (name === 'pavilion')     buildPavilion();
+  else if (name === 'bleachers')    buildBleachers();
+  document.getElementById('info-desc').textContent = DESCRIPTIONS[name];
+  document.querySelectorAll('.mock-btn').forEach((b) => {
+    b.classList.toggle('active', b.dataset.stand === name);
+  });
+}
+
+document.querySelectorAll('.mock-btn').forEach((b) => {
+  b.addEventListener('click', () => setStand(b.dataset.stand));
+});
+
+setStand('amphitheater');
+
+function tick() {
+  orbitAngle += 0.0035;
+  camera.position.set(
+    orbitCenter.x + Math.sin(orbitAngle) * orbitRadius,
+    orbitCenter.y + orbitHeight,
+    orbitCenter.z + Math.cos(orbitAngle) * orbitRadius
+  );
+  camera.lookAt(orbitCenter);
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+tick();
+</script>
+</body>
+</html>

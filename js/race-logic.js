@@ -5,6 +5,8 @@ import {
 } from './constants.js';
 import { blowThresholdReached } from './shift-scoring.js';
 import { aiSample } from './ai.js';
+import { playShift, playBlow, playTreeBeep, playGreenBeep } from './audio.js';
+import { hapticShift, hapticBlow, hapticJumpStart } from './haptics.js';
 
 const INTRO_DURATION_S = 2.0;
 const STAGING_HOLD_DURATION_S = 0.5; // player must hold both for 0.5s before tree
@@ -88,12 +90,18 @@ function tickTree(gd, balance, dt) {
   const t = gd.raceTimeS - gd.treeStartTimeS;
   const ambers = Math.min(TREE_AMBER_COUNT, Math.floor(t / TREE_AMBER_INTERVAL_S));
   gd.treeAmbersLit = ambers;
+  // Beep on each new amber the player sees light up
+  if (ambers > (gd._lastAmbersBeeped | 0) && ambers <= TREE_AMBER_COUNT) {
+    playTreeBeep();
+    gd._lastAmbersBeeped = ambers;
+  }
   // Only the player can jump (AI is forced-held by tickStaging/tickTree)
   if (gd.treeGreenAtS === 0) {
     if (!gd.inputShift[PLAYER_CAR_IDX] && !gd.jumped[PLAYER_CAR_IDX]) {
       gd.jumped[PLAYER_CAR_IDX] = 1;
       gd.raceState = 'finished';
       gd.winnerCarIdx = 1 - PLAYER_CAR_IDX;
+      hapticJumpStart();
       return;
     }
   }
@@ -104,6 +112,7 @@ function tickTree(gd, balance, dt) {
   const greenAtT = (TREE_AMBER_COUNT + 1) * TREE_AMBER_INTERVAL_S;
   if (t >= greenAtT && gd.treeGreenAtS === 0) {
     gd.treeGreenAtS = gd.raceTimeS;
+    playGreenBeep(); // distinct higher-pitched GO cue
     gd.raceState = 'launching';
   }
 }
@@ -164,6 +173,7 @@ function handleShiftTap(gd, balance, i) {
   gd.rpm[i] = gd.rpm[i] * (ratioNew / ratioOld);
   if (gd.rpm[i] < car.idleRpm) gd.rpm[i] = car.idleRpm;
   gd.gear[i] = newGear;
+  if (i === PLAYER_CAR_IDX) { playShift(); hapticShift(); }
   gd.timeAtLimiterS[i] = 0;
   // Record shift event for post-race telemetry
   if (!gd._shiftLog) gd._shiftLog = [[], []];
@@ -271,6 +281,7 @@ function stepCar(gd, balance, i, dt) {
   else gd.timeAtLimiterS[i] = 0;
   if (blowThresholdReached(gd.timeAtLimiterS[i], BLOW_THRESHOLD_S)) {
     gd.blown[i] = 1;
+    if (i === PLAYER_CAR_IDX) { playBlow(); hapticBlow(); }
     return;
   }
   const torque = torqueAt(car, gd.rpm[i]);

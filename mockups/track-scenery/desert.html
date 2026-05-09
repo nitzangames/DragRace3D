@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Drag Race 3D — Desert Scenery Variants</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  html,body { margin:0; padding:0; height:100%; background:#0a0e14; color:#fff; font-family:system-ui; overflow:hidden; }
+  #root { position:fixed; inset:0; }
+  canvas { display:block; }
+  #panel {
+    position:fixed; top:16px; left:50%; transform:translateX(-50%);
+    background:rgba(8,12,20,0.85); border:1px solid #2a2f3a; border-radius:10px;
+    padding:8px; display:flex; gap:6px; z-index:10;
+  }
+  .mock-btn {
+    background:#1a1d22; color:#fff; border:2px solid #555; border-radius:8px;
+    padding:8px 14px; font:600 13px system-ui; cursor:pointer;
+    letter-spacing:0.04em; touch-action:manipulation;
+  }
+  .mock-btn.active { border-color:#2aa050; background:#1a3520; }
+  .mock-btn:hover:not(.active) { border-color:#888; }
+  #info {
+    position:fixed; bottom:16px; left:50%; transform:translateX(-50%);
+    background:rgba(8,12,20,0.85); border:1px solid #2a2f3a; border-radius:10px;
+    padding:10px 16px; max-width:680px; font-size:14px; line-height:1.4;
+    text-align:center;
+  }
+  #info .label { color:#888; font-size:11px; letter-spacing:0.08em; margin-bottom:4px; }
+  #info .desc { color:#fff; }
+  #back {
+    position:fixed; top:16px; left:16px; z-index:10;
+    background:transparent; border:2px solid #888; color:#fff;
+    border-radius:8px; padding:6px 12px; font:600 14px system-ui; cursor:pointer;
+    text-decoration:none;
+  }
+</style>
+</head>
+<body>
+<a id="back" href="./index.html">‹ THEMES</a>
+<div id="root"></div>
+<div id="panel">
+  <button class="mock-btn active" data-desert="mojave">A · MOJAVE</button>
+  <button class="mock-btn" data-desert="bonneville">B · BONNEVILLE</button>
+  <button class="mock-btn" data-desert="redrock">C · RED ROCK</button>
+  <button class="mock-btn" data-desert="saguaro">D · SAGUARO</button>
+</div>
+<div id="info">
+  <div class="label">DESERT SCENERY VARIANT</div>
+  <div id="info-desc" class="desc"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const T = window.THREE;
+const root = document.getElementById('root');
+const renderer = new T.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+function resize() { renderer.setSize(window.innerWidth, window.innerHeight); }
+resize();
+window.addEventListener('resize', resize);
+root.appendChild(renderer.domElement);
+
+let scene, camera, sceneryGroup;
+const orbitCenter = new T.Vector3(0, 4, -55);
+const orbitRadius = 50;
+const orbitHeight = 16;
+let orbitAngle = 0.6;
+
+function buildBaseScene(preset) {
+  scene = new T.Scene();
+  scene.background = new T.Color(preset.fogColor);
+  scene.fog = new T.Fog(preset.fogColor, preset.fogNear || 60, preset.fogFar || 480);
+
+  scene.add(new T.AmbientLight(preset.ambient, 0.55));
+  scene.add(new T.HemisphereLight(0xa8c8ff, 0x3a3020, 0.4));
+  const sun = new T.DirectionalLight(preset.sun, preset.sunIntensity);
+  sun.position.set(...preset.sunPos);
+  scene.add(sun);
+
+  // Strip + dirt + tree + cars
+  const stripCanvas = document.createElement('canvas');
+  stripCanvas.width = 256; stripCanvas.height = 1024;
+  const sc = stripCanvas.getContext('2d');
+  sc.fillStyle = '#2d2d31'; sc.fillRect(0, 0, 256, 1024);
+  for (let i = 0; i < 1500; i++) {
+    sc.fillStyle = `rgba(255,255,255,${(Math.random()*0.06).toFixed(3)})`;
+    sc.fillRect(Math.random()*256, Math.random()*1024, 2, 2);
+  }
+  sc.fillStyle = '#d6b22f'; sc.fillRect(126, 0, 4, 1024);
+  sc.fillStyle = '#dddddd'; sc.fillRect(8, 0, 4, 1024); sc.fillRect(244, 0, 4, 1024);
+  const stripTex = new T.CanvasTexture(stripCanvas);
+  stripTex.wrapS = stripTex.wrapT = T.RepeatWrapping;
+  stripTex.repeat.set(1, 60); stripTex.anisotropy = 4;
+  const strip = new T.Mesh(new T.PlaneGeometry(15, 700),
+    new T.MeshLambertMaterial({ map: stripTex }));
+  strip.rotation.x = -Math.PI/2; strip.position.set(0, 0, -300);
+  scene.add(strip);
+
+  const dirt = new T.Mesh(new T.PlaneGeometry(400, 700),
+    new T.MeshLambertMaterial({ color: preset.ground }));
+  dirt.rotation.x = -Math.PI/2; dirt.position.set(0, -0.05, -300);
+  scene.add(dirt);
+
+  // Tree
+  const tree = new T.Group();
+  const post = new T.Mesh(new T.BoxGeometry(0.4, 6, 0.4),
+    new T.MeshLambertMaterial({ color: 0x202020 }));
+  post.position.y = 3; tree.add(post);
+  for (let i = 0; i < 5; i++) for (const sx of [-1, 1]) {
+    const c = i < 3 ? 0xffaa00 : (i === 4 ? 0x22ee48 : 0x551100);
+    const bulb = new T.Mesh(new T.SphereGeometry(0.22, 12, 8),
+      new T.MeshBasicMaterial({ color: c }));
+    bulb.position.set(sx*0.5, 5.5 - i*0.9, 0);
+    tree.add(bulb);
+  }
+  tree.position.set(0, 0, -1.5);
+  scene.add(tree);
+
+  for (const cx of [-2.5, 2.5]) {
+    const car = new T.Group();
+    const body = new T.Mesh(new T.BoxGeometry(1.7, 0.9, 4),
+      new T.MeshLambertMaterial({ color: cx > 0 ? 0xc83a26 : 0x4d6dd6 }));
+    body.position.y = 0.55; car.add(body);
+    const cabin = new T.Mesh(new T.BoxGeometry(1.55, 0.95, 2),
+      new T.MeshLambertMaterial({ color: 0x222222 }));
+    cabin.position.set(0, 1.45, -0.05); car.add(cabin);
+    car.position.set(cx, 0, 2);
+    scene.add(car);
+  }
+
+  sceneryGroup = new T.Group();
+  scene.add(sceneryGroup);
+
+  camera = new T.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 600);
+}
+
+// ===========================================================================
+// VARIANT A: MOJAVE — palm trees, mountain backdrop, sandstone, golden hour
+// ===========================================================================
+function buildMojave() {
+  const g = sceneryGroup;
+  const mountainMat = new T.MeshLambertMaterial({ color: 0x8a6a4a });
+  const mtnGeo = new T.ConeGeometry(60, 50, 5);
+  const mtnSpots = [
+    [-180, -380, 1.0], [-90, -440, 1.3], [0, -400, 1.5],
+    [90, -440, 1.2],   [180, -380, 0.95], [-150, -340, 0.7],
+    [140, -340, 0.8],
+  ];
+  for (const [x, z, scale] of mtnSpots) {
+    const mtn = new T.Mesh(mtnGeo, mountainMat);
+    mtn.position.set(x, 25 * scale - 5, z);
+    mtn.scale.set(scale, scale, scale);
+    g.add(mtn);
+  }
+
+  // Sandstone outcrops mid-distance
+  const stoneMat = new T.MeshLambertMaterial({ color: 0xb89060 });
+  for (let i = 0; i < 6; i++) {
+    const x = (i % 2 === 0 ? -1 : 1) * (60 + i * 8);
+    const z = -120 - i * 35;
+    const stone = new T.Mesh(new T.BoxGeometry(8, 6 + (i % 3)*2, 7), stoneMat);
+    stone.position.set(x, 3 + (i%3), z);
+    g.add(stone);
+  }
+
+  // Palm trees scattered
+  const trunkGeo = new T.CylinderGeometry(0.25, 0.4, 7, 8);
+  const trunkMat = new T.MeshLambertMaterial({ color: 0x6a4a2c });
+  const frondMat = new T.MeshLambertMaterial({ color: 0x3a8a3a });
+  const palmSpots = [
+    [-30, -25], [35, -55], [-40, -90], [42, -130], [-50, -170],
+    [38, -210], [-32, -240], [45, -280], [-28, -310], [40, -350],
+    [-55, -65], [55, -100], [-58, -200], [60, -250], [-45, -330],
+  ];
+  for (const [x, z] of palmSpots) {
+    const trunk = new T.Mesh(trunkGeo, trunkMat);
+    trunk.position.set(x, 3.5, z); g.add(trunk);
+    for (let f = 0; f < 6; f++) {
+      const angle = (f / 6) * Math.PI * 2;
+      const frond = new T.Mesh(new T.BoxGeometry(2.5, 0.1, 0.4), frondMat);
+      frond.position.set(x + Math.cos(angle) * 1.3, 7.2,
+                         z + Math.sin(angle) * 1.3);
+      frond.rotation.y = angle;
+      frond.rotation.z = -0.3;
+      g.add(frond);
+    }
+    const coconut = new T.Mesh(new T.SphereGeometry(0.25, 8, 6),
+      new T.MeshLambertMaterial({ color: 0x3a2410 }));
+    coconut.position.set(x, 6.8, z); g.add(coconut);
+  }
+
+  // Sparse adobe-style stand structure (one set of bleachers, weathered)
+  const standMat = new T.MeshLambertMaterial({ color: 0xa07050 });
+  for (let s = 0; s < 4; s++) {
+    const stand = new T.Mesh(new T.BoxGeometry(15, 5, 4), standMat);
+    stand.position.set(-22, 2.5, -30 - s * 16); g.add(stand);
+  }
+
+  // Distant cacti
+  const cactusMat = new T.MeshLambertMaterial({ color: 0x4a7a4a });
+  for (const [x, z] of [[-65, -150], [62, -120], [-72, -200], [70, -260], [-50, -290]]) {
+    const c = new T.Mesh(new T.CylinderGeometry(0.6, 0.7, 3, 8), cactusMat);
+    c.position.set(x, 1.5, z); g.add(c);
+    const arm = new T.Mesh(new T.CylinderGeometry(0.4, 0.4, 1.4, 8), cactusMat);
+    arm.position.set(x + 0.7, 2.2, z); arm.rotation.z = -0.6; g.add(arm);
+  }
+}
+
+// ===========================================================================
+// VARIANT B: BONNEVILLE — pure white salt flat, distant mountains, sparse
+// ===========================================================================
+function buildBonneville() {
+  const g = sceneryGroup;
+
+  // Salt flat ground tile (wider, brighter than the dirt — covers a huge area)
+  const saltMat = new T.MeshLambertMaterial({ color: 0xeae5d8 });
+  const salt = new T.Mesh(new T.PlaneGeometry(800, 800), saltMat);
+  salt.rotation.x = -Math.PI/2;
+  salt.position.set(0, -0.04, -200); g.add(salt);
+  // Crackle pattern: tiny darker hexagonal-ish patches
+  const crackMat = new T.MeshLambertMaterial({ color: 0xc8c4b8 });
+  const crackGeo = new T.CircleGeometry(2, 6);
+  for (let i = 0; i < 80; i++) {
+    const cx = (Math.random() - 0.5) * 240;
+    const cz = -50 - Math.random() * 380;
+    if (Math.abs(cx) < 14) continue;       // keep strip clean
+    const crack = new T.Mesh(crackGeo, crackMat);
+    crack.rotation.x = -Math.PI/2;
+    crack.rotation.z = Math.random() * Math.PI;
+    crack.position.set(cx, -0.03, cz);
+    g.add(crack);
+  }
+
+  // Distant rocky mountains — long low ridge across the back
+  const ridgeMat = new T.MeshLambertMaterial({ color: 0x8a8590 });
+  for (let i = 0; i < 18; i++) {
+    const x = -200 + i * 25;
+    const h = 14 + (i % 5) * 4;
+    const ridge = new T.Mesh(new T.ConeGeometry(15, h, 4), ridgeMat);
+    ridge.position.set(x, h/2 - 1, -440);
+    ridge.rotation.y = (i % 2) * 0.6;
+    g.add(ridge);
+  }
+  // Mountain shadow line — second darker row behind
+  const ridgeMat2 = new T.MeshLambertMaterial({ color: 0x70697a });
+  for (let i = 0; i < 14; i++) {
+    const x = -180 + i * 30;
+    const h = 22 + (i % 4) * 6;
+    const ridge = new T.Mesh(new T.ConeGeometry(20, h, 4), ridgeMat2);
+    ridge.position.set(x, h/2 - 2, -490);
+    g.add(ridge);
+  }
+
+  // Course markers — orange traffic cones along the strip edges
+  const coneMat = new T.MeshLambertMaterial({ color: 0xff7f00 });
+  const coneStripeMat = new T.MeshLambertMaterial({ color: 0xffffff });
+  for (let z = -10; z >= -360; z -= 20) {
+    for (const cx of [-9, 9]) {
+      const cone = new T.Mesh(new T.ConeGeometry(0.5, 1.5, 8), coneMat);
+      cone.position.set(cx, 0.75, z); g.add(cone);
+      const stripe = new T.Mesh(new T.CylinderGeometry(0.45, 0.4, 0.2, 8),
+        coneStripeMat);
+      stripe.position.set(cx, 0.85, z); g.add(stripe);
+    }
+  }
+
+  // Course start/end pylons (large blue starting pylons)
+  for (const z of [-5, -395]) {
+    for (const px of [-9, 9]) {
+      const pylon = new T.Mesh(new T.BoxGeometry(1, 6, 1),
+        new T.MeshLambertMaterial({ color: 0x2a8fd4 }));
+      pylon.position.set(px, 3, z); g.add(pylon);
+    }
+  }
+
+  // Sparse distant tents (race team support)
+  const tentMat1 = new T.MeshLambertMaterial({ color: 0xc83a26 });
+  const tentMat2 = new T.MeshLambertMaterial({ color: 0x2a8fd4 });
+  const tentMat3 = new T.MeshLambertMaterial({ color: 0xffd14a });
+  const tentMats = [tentMat1, tentMat2, tentMat3];
+  for (let i = 0; i < 8; i++) {
+    const x = (i % 2 === 0 ? -1 : 1) * (32 + (i % 3) * 4);
+    const z = -40 - i * 35;
+    const tent = new T.Mesh(new T.ConeGeometry(3, 4, 4),
+      tentMats[i % tentMats.length]);
+    tent.position.set(x, 2, z);
+    tent.rotation.y = Math.PI / 4;
+    g.add(tent);
+  }
+}
+
+// ===========================================================================
+// VARIANT C: RED ROCK — towering red mesas, narrow canyon walls, dramatic
+// ===========================================================================
+function buildRedRock() {
+  const g = sceneryGroup;
+  const redMat = new T.MeshLambertMaterial({ color: 0xb44020 });
+  const redDarkMat = new T.MeshLambertMaterial({ color: 0x8a3018 });
+  const redLightMat = new T.MeshLambertMaterial({ color: 0xc85040 });
+
+  // Tall mesas / buttes flanking the strip (close-in, dramatic walls)
+  const buttePositions = [
+    [-32, -40, 18, 32, redMat],
+    [34, -80, 22, 28, redDarkMat],
+    [-38, -120, 16, 36, redLightMat],
+    [40, -160, 26, 30, redMat],
+    [-34, -200, 20, 34, redDarkMat],
+    [42, -250, 24, 38, redLightMat],
+    [-40, -290, 18, 32, redMat],
+    [38, -340, 22, 28, redDarkMat],
+  ];
+  for (const [x, z, w, h, mat] of buttePositions) {
+    // Stack 2-3 layers to give a stepped erosion look
+    const lay1 = new T.Mesh(new T.BoxGeometry(w, h * 0.65, w * 0.9), mat);
+    lay1.position.set(x, h * 0.65 / 2, z); g.add(lay1);
+    const lay2 = new T.Mesh(new T.BoxGeometry(w * 0.85, h * 0.25, w * 0.75),
+      mat === redDarkMat ? redMat : redDarkMat);
+    lay2.position.set(x, h * 0.65 + h * 0.25 / 2, z); g.add(lay2);
+    const lay3 = new T.Mesh(new T.BoxGeometry(w * 0.6, h * 0.1, w * 0.55),
+      redLightMat);
+    lay3.position.set(x, h * 0.9 + h * 0.05, z); g.add(lay3);
+  }
+
+  // Tall sandstone spires (slender vertical features)
+  const spireMat = new T.MeshLambertMaterial({ color: 0xc05030 });
+  const spireSpots = [
+    [-20, -55, 4, 24], [25, -100, 3, 18], [-22, -180, 4, 26],
+    [28, -220, 3, 20], [-26, -270, 5, 28], [24, -310, 4, 22],
+  ];
+  for (const [x, z, r, h] of spireSpots) {
+    const spire = new T.Mesh(new T.CylinderGeometry(r * 0.6, r, h, 6), spireMat);
+    spire.position.set(x, h/2, z); g.add(spire);
+    // Cap stone
+    const cap = new T.Mesh(new T.CylinderGeometry(r * 0.7, r * 0.6, h * 0.06, 6),
+      new T.MeshLambertMaterial({ color: 0xa03020 }));
+    cap.position.set(x, h + h * 0.03, z); g.add(cap);
+  }
+
+  // Distant canyon walls — solid red wall far behind
+  const wallMat = new T.MeshLambertMaterial({ color: 0x6a2a18 });
+  for (let i = 0; i < 10; i++) {
+    const x = -150 + i * 32;
+    const h = 50 + (i % 4) * 14;
+    const w = 36;
+    const wall = new T.Mesh(new T.BoxGeometry(w, h, 16), wallMat);
+    wall.position.set(x, h/2, -420); g.add(wall);
+  }
+
+  // Boulders along the dirt run-off
+  const boulderMat = new T.MeshLambertMaterial({ color: 0x8a3a20 });
+  for (let i = 0; i < 18; i++) {
+    const x = (Math.random() < 0.5 ? -1 : 1) * (15 + Math.random() * 8);
+    const z = -20 - Math.random() * 320;
+    const r = 1 + Math.random() * 1.5;
+    const b = new T.Mesh(new T.SphereGeometry(r, 8, 6), boulderMat);
+    b.position.set(x, r * 0.7, z);
+    b.scale.set(1.2, 0.9, 1.0);
+    g.add(b);
+  }
+
+  // Sparse desert brush (small green tufts)
+  const brushMat = new T.MeshLambertMaterial({ color: 0x6a7030 });
+  for (let i = 0; i < 22; i++) {
+    const x = (Math.random() < 0.5 ? -1 : 1) * (18 + Math.random() * 12);
+    const z = -25 - Math.random() * 340;
+    const b = new T.Mesh(new T.SphereGeometry(0.6, 6, 5), brushMat);
+    b.position.set(x, 0.4, z); b.scale.y = 0.6;
+    g.add(b);
+  }
+}
+
+// ===========================================================================
+// VARIANT D: SAGUARO — saguaro cacti, low rocky hills, scrub brush
+// ===========================================================================
+function buildSaguaro() {
+  const g = sceneryGroup;
+
+  // Low rolling hills in the distance
+  const hillMat = new T.MeshLambertMaterial({ color: 0x8a7050 });
+  for (let i = 0; i < 14; i++) {
+    const x = -160 + i * 24;
+    const h = 16 + (i % 5) * 5;
+    const hill = new T.Mesh(new T.SphereGeometry(20, 12, 8), hillMat);
+    hill.position.set(x, -2, -380);
+    hill.scale.set(1.2, h / 22, 1.0);
+    g.add(hill);
+  }
+  // Foreground hills (smaller, closer)
+  const fgHillMat = new T.MeshLambertMaterial({ color: 0xa08260 });
+  for (let i = 0; i < 8; i++) {
+    const x = (i % 2 === 0 ? -1 : 1) * (50 + (i % 3) * 8);
+    const z = -80 - i * 40;
+    const hill = new T.Mesh(new T.SphereGeometry(12, 10, 7), fgHillMat);
+    hill.position.set(x, -1, z);
+    hill.scale.set(1.4, 0.55, 1.0);
+    g.add(hill);
+  }
+
+  // Saguaro cacti — characteristic vertical trunk + arms (left + right)
+  function makeSaguaro(armConfig) {
+    const sag = new T.Group();
+    const cactusMat = new T.MeshLambertMaterial({ color: 0x4a8a4a });
+    // Main trunk
+    const trunk = new T.Mesh(new T.CylinderGeometry(0.5, 0.6, 6, 10), cactusMat);
+    trunk.position.y = 3; sag.add(trunk);
+    // Trunk top cap
+    const cap = new T.Mesh(new T.SphereGeometry(0.5, 8, 6), cactusMat);
+    cap.position.y = 6; sag.add(cap);
+    // Arms — clean L-shape: horizontal segment out of the trunk, an elbow
+    // sphere at the bend, then a vertical segment growing up parallel to
+    // the trunk. (yoff, side, armH) controls height, direction, vertical
+    // segment length.
+    for (const [yoff, side, armH] of armConfig) {
+      const armR = 0.3;
+      const horizLen = 1.2;
+      const elbowX = side * (0.5 + horizLen);
+      const horiz = new T.Mesh(
+        new T.CylinderGeometry(armR, armR, horizLen, 8), cactusMat);
+      horiz.rotation.z = Math.PI / 2;       // lay on its side, axis along X
+      horiz.position.set(side * (0.5 + horizLen / 2), yoff, 0);
+      sag.add(horiz);
+      const elbow = new T.Mesh(new T.SphereGeometry(armR, 8, 6), cactusMat);
+      elbow.position.set(elbowX, yoff, 0);
+      sag.add(elbow);
+      const vert = new T.Mesh(
+        new T.CylinderGeometry(armR * 0.95, armR, armH, 8), cactusMat);
+      vert.position.set(elbowX, yoff + armH / 2, 0);
+      sag.add(vert);
+      const armCap = new T.Mesh(new T.SphereGeometry(armR, 8, 6), cactusMat);
+      armCap.position.set(elbowX, yoff + armH, 0);
+      sag.add(armCap);
+    }
+    return sag;
+  }
+  const saguaroSpots = [
+    [-22, -30,  [[3.5, 1, 2.8]]],
+    [25, -55,   [[3, -1, 2.5], [4, 1, 1.8]]],
+    [-26, -85,  [[3.5, 1, 2.5]]],
+    [28, -120,  [[3, -1, 2.2], [4.2, 1, 2.4]]],
+    [-30, -160, [[3.8, 1, 2.6]]],
+    [25, -195,  [[3.2, -1, 2.4]]],
+    [-28, -230, [[3.5, -1, 2.5], [4.0, 1, 2.0]]],
+    [30, -270,  [[3.6, 1, 2.8]]],
+    [-25, -310, [[3.4, 1, 2.2], [4.1, -1, 2.4]]],
+    [27, -350,  [[3.8, -1, 2.5]]],
+    [-50, -65, [[3.5, 1, 2.6]]],
+    [52, -110, [[3, -1, 2.3]]],
+    [-48, -180, [[3.7, 1, 2.4]]],
+    [50, -250, [[3.4, -1, 2.5], [4.2, 1, 2.0]]],
+    [-46, -320, [[3.5, 1, 2.4]]],
+  ];
+  for (const [x, z, arms] of saguaroSpots) {
+    const sag = makeSaguaro(arms);
+    sag.position.set(x, 0, z);
+    sag.rotation.y = Math.random() * Math.PI * 2;
+    g.add(sag);
+  }
+
+  // Scrub brush bushes scattered everywhere
+  const brushMat = new T.MeshLambertMaterial({ color: 0x6a6a3a });
+  for (let i = 0; i < 50; i++) {
+    const x = (Math.random() < 0.5 ? -1 : 1) * (15 + Math.random() * 30);
+    const z = -15 - Math.random() * 350;
+    const b = new T.Mesh(new T.SphereGeometry(0.7, 6, 5), brushMat);
+    b.position.set(x, 0.5, z); b.scale.y = 0.7;
+    g.add(b);
+  }
+
+  // Wood fence posts along strip edges (rancher-style)
+  const fenceMat = new T.MeshLambertMaterial({ color: 0x6a4a2c });
+  for (let z = -10; z >= -360; z -= 8) {
+    for (const fx of [-12, 12]) {
+      const post = new T.Mesh(new T.BoxGeometry(0.25, 1.6, 0.25), fenceMat);
+      post.position.set(fx, 0.8, z); g.add(post);
+    }
+  }
+  // Horizontal rails
+  for (const fx of [-12, 12]) {
+    for (const ry of [0.4, 1.1]) {
+      const rail = new T.Mesh(new T.BoxGeometry(0.1, 0.1, 350), fenceMat);
+      rail.position.set(fx, ry, -185); g.add(rail);
+    }
+  }
+
+  // Distant water tower (Western-style)
+  const towerLeg = new T.MeshLambertMaterial({ color: 0x6a4030 });
+  for (const [x, z] of [[-60, -210]]) {
+    for (const ldx of [-2, 2]) for (const ldz of [-2, 2]) {
+      const leg = new T.Mesh(new T.BoxGeometry(0.4, 10, 0.4), towerLeg);
+      leg.position.set(x + ldx, 5, z + ldz); g.add(leg);
+    }
+    const tank = new T.Mesh(new T.CylinderGeometry(3, 3, 4, 12),
+      new T.MeshLambertMaterial({ color: 0x8a6a4a }));
+    tank.position.set(x, 12, z); g.add(tank);
+    const roof = new T.Mesh(new T.ConeGeometry(3.2, 1.8, 12),
+      new T.MeshLambertMaterial({ color: 0x4a3020 }));
+    roof.position.set(x, 14.9, z); g.add(roof);
+  }
+}
+
+// ===========================================================================
+// PRESETS (lighting per variant)
+// ===========================================================================
+const PRESETS = {
+  mojave: {
+    fogColor: 0xf2c890, ambient: 0xc8a070, ground: 0xb89060,
+    sun: 0xff9c40, sunIntensity: 1.4, sunPos: [-30, 25, -40],
+    fogNear: 80, fogFar: 480,
+  },
+  bonneville: {
+    fogColor: 0xf0eedd, ambient: 0xeae0c8, ground: 0xeae5d8,
+    sun: 0xfff8e0, sunIntensity: 1.5, sunPos: [40, 80, 30],
+    fogNear: 150, fogFar: 540,
+  },
+  redrock: {
+    fogColor: 0xe4a070, ambient: 0xa07050, ground: 0x8a4830,
+    sun: 0xff6028, sunIntensity: 1.3, sunPos: [-50, 30, -60],
+    fogNear: 60, fogFar: 420,
+  },
+  saguaro: {
+    fogColor: 0xe2c490, ambient: 0xc8b08c, ground: 0xa88860,
+    sun: 0xfff0c0, sunIntensity: 1.25, sunPos: [40, 60, 30],
+    fogNear: 100, fogFar: 460,
+  },
+};
+
+const DESCRIPTIONS = {
+  mojave:
+    'A · Mojave: palm trees with fronds and coconuts, sandstone outcrops, mountain backdrop, distant cacti, weathered adobe stand. Golden-hour sun.',
+  bonneville:
+    'B · Bonneville: pure white salt-flat ground with hex-crackle pattern, traffic cones marking the lane, blue race pylons at start/end, race-team tents, low jagged ridge across the horizon. Bright midday.',
+  redrock:
+    'C · Red Rock: towering red mesas with stepped erosion layers, slender sandstone spires with cap stones, distant canyon wall, scattered boulders + brush. Dramatic orange/red lighting.',
+  saguaro:
+    'D · Saguaro: classic Sonoran-desert saguaro cacti with arms at varied heights, rolling tan hills behind, wood-rail rancher fence, scrub brush, lone water tower in the distance.',
+};
+
+function setDesert(name) {
+  buildBaseScene(PRESETS[name]);
+  if      (name === 'mojave')     buildMojave();
+  else if (name === 'bonneville') buildBonneville();
+  else if (name === 'redrock')    buildRedRock();
+  else if (name === 'saguaro')    buildSaguaro();
+  document.getElementById('info-desc').textContent = DESCRIPTIONS[name];
+  document.querySelectorAll('.mock-btn').forEach((b) => {
+    b.classList.toggle('active', b.dataset.desert === name);
+  });
+}
+
+document.querySelectorAll('.mock-btn').forEach((b) => {
+  b.addEventListener('click', () => setDesert(b.dataset.desert));
+});
+
+setDesert('mojave');
+
+function tick() {
+  orbitAngle += 0.0035;
+  camera.position.set(
+    orbitCenter.x + Math.sin(orbitAngle) * orbitRadius,
+    orbitCenter.y + orbitHeight,
+    orbitCenter.z + Math.cos(orbitAngle) * orbitRadius
+  );
+  camera.lookAt(orbitCenter);
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+tick();
+</script>
+</body>
+</html>

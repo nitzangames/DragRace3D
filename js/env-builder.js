@@ -1,18 +1,41 @@
-/* Builds the classic-strip environment as a THREE.Group + ancillary objects.
- * Reads window.THREE (loaded via CDN <script>). All other env builders are
- * deferred to Plan 3.
+/* Builds the strip environment: lighting, shadow setup, asphalt + dirt,
+ * christmas tree, finish gantry, and a `sceneryGroup` populated by the
+ * matching js/scenery.js variant. applyEnvPreset rebuilds the scenery in
+ * place when the active env id changes between races.
+ *
+ * Reads window.THREE (loaded via CDN <script>).
  */
+import { ENV_PRESETS } from './env-presets.js';
+import { pickScenery } from './scenery.js';
 
-export function buildClassicEnv(scene) {
+const FALLBACK_PRESET_ID = 'amphitheater';
+
+export function buildClassicEnv(scene, presetId) {
   const T = window.THREE;
+  const id = ENV_PRESETS[presetId] ? presetId : FALLBACK_PRESET_ID;
+  const initial = ENV_PRESETS[id];
 
-  scene.background = new T.Color(0x9bb8d8);
-  scene.fog = new T.Fog(0x9bb8d8, 80, 400);
+  scene.background = new T.Color(initial.fog.color);
+  scene.fog = new T.Fog(initial.fog.color, initial.fog.near, initial.fog.far);
 
-  scene.add(new T.AmbientLight(0xa8b8d8, 0.55));
-  scene.add(new T.HemisphereLight(0xa8c8ff, 0x3a3020, 0.35));
-  const sun = new T.DirectionalLight(0xfff0d0, 1.1);
+  const ambient = new T.AmbientLight(initial.ambient, 0.55);
+  scene.add(ambient);
+  const hemi = new T.HemisphereLight(0xa8c8ff, 0x3a3020, 0.35);
+  scene.add(hemi);
+  const sun = new T.DirectionalLight(initial.sun, initial.lightIntensity);
   sun.position.set(60, 90, 40);
+  sun.castShadow = true;
+  sun.shadow.mapSize.width = 1024;
+  sun.shadow.mapSize.height = 1024;
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far = 220;
+  sun.shadow.camera.left = -60;
+  sun.shadow.camera.right = 60;
+  sun.shadow.camera.top = 60;
+  sun.shadow.camera.bottom = -60;
+  sun.shadow.bias = -0.0005;
+  sun.target.position.set(0, 0, -50);
+  scene.add(sun.target);
   scene.add(sun);
 
   // Asphalt strip texture (canvas, repeated)
@@ -30,29 +53,18 @@ export function buildClassicEnv(scene) {
   stripTex.wrapS = T.RepeatWrapping; stripTex.wrapT = T.RepeatWrapping;
   stripTex.repeat.set(1, 60); stripTex.anisotropy = 4;
 
-  const strip = new T.Mesh(
-    new T.PlaneGeometry(15, 700),
-    new T.MeshLambertMaterial({ map: stripTex })
-  );
+  const stripMat = new T.MeshLambertMaterial({ map: stripTex });
+  const strip = new T.Mesh(new T.PlaneGeometry(15, 700), stripMat);
   strip.rotation.x = -Math.PI / 2;
   strip.position.set(0, 0, -300);
+  strip.receiveShadow = true;
   scene.add(strip);
 
-  // Dirt run-off
-  const dirt = new T.Mesh(
-    new T.PlaneGeometry(300, 700),
-    new T.MeshLambertMaterial({ color: 0x6a5a3c })
-  );
+  const dirtMat = new T.MeshLambertMaterial({ color: initial.ground });
+  const dirt = new T.Mesh(new T.PlaneGeometry(300, 700), dirtMat);
   dirt.rotation.x = -Math.PI / 2; dirt.position.set(0, -0.05, -300);
+  dirt.receiveShadow = true;
   scene.add(dirt);
-
-  // Grandstands
-  const standMat = new T.MeshLambertMaterial({ color: 0x556677 });
-  for (let s = 0; s < 8; s++) {
-    const stand = new T.Mesh(new T.BoxGeometry(15, 6, 4), standMat);
-    stand.position.set(-14 + (s % 2) * 28, 3, -20 - s * 18);
-    scene.add(stand);
-  }
 
   // Christmas tree (returned for state-driven bulb updates)
   const tree = new T.Group();
@@ -61,7 +73,7 @@ export function buildClassicEnv(scene) {
     new T.MeshLambertMaterial({ color: 0x202020 })
   );
   post.position.y = 3; tree.add(post);
-  const treeColors = [0x554000, 0x554000, 0x554000, 0x551100, 0x115522]; // dim defaults
+  const treeColors = [0x554000, 0x554000, 0x554000, 0x551100, 0x115522];
   const ambers = []; const greens = [];
   for (let i = 0; i < 5; i++) {
     for (const sx of [-1, 1]) {
@@ -80,22 +92,61 @@ export function buildClassicEnv(scene) {
 
   // Finish gantry
   const gantry = new T.Group();
-  const left = new T.Mesh(
-    new T.BoxGeometry(0.6, 9, 0.6),
-    new T.MeshLambertMaterial({ color: 0x444444 })
-  );
+  const left = new T.Mesh(new T.BoxGeometry(0.6, 9, 0.6),
+    new T.MeshLambertMaterial({ color: 0x444444 }));
   left.position.set(-7.5, 4.5, 0); gantry.add(left);
   const right = left.clone(); right.position.x = 7.5; gantry.add(right);
-  const cross = new T.Mesh(
-    new T.BoxGeometry(15.6, 1.2, 0.6),
-    new T.MeshLambertMaterial({ color: 0xc04020 })
-  );
+  const cross = new T.Mesh(new T.BoxGeometry(15.6, 1.2, 0.6),
+    new T.MeshLambertMaterial({ color: 0xc04020 }));
   cross.position.set(0, 9, 0); gantry.add(cross);
-  // Finish line is 402.336m down strip (1/4 mile). Use that as Z.
   gantry.position.set(0, 0, -402.336);
   scene.add(gantry);
 
-  return { strip, tree, ambers, greens };
+  // Variant-specific scenery (grandstands / warehouses / palms / neon /
+  // depending on presetId). Living in its own sub-group so applyEnvPreset
+  // can rebuild it without touching strip / lights / tree.
+  const sceneryGroup = new T.Group();
+  scene.add(sceneryGroup);
+  pickScenery(sceneryGroup, id);
+
+  return { strip, tree, ambers, greens, ambient, sun, dirtMat, scene, sceneryGroup };
+}
+
+/**
+ * Mutate scene/lights/materials AND rebuild scenery to match a preset.
+ * Caller provides envObjects returned from buildClassicEnv. No reallocation
+ * of the strip/tree/lights — only the scenery sub-group is wiped + rebuilt.
+ */
+export function applyEnvPreset(envObjects, presetId) {
+  const T = window.THREE;
+  const id = ENV_PRESETS[presetId] ? presetId : FALLBACK_PRESET_ID;
+  const p = ENV_PRESETS[id];
+  if (envObjects.scene) {
+    envObjects.scene.background = new T.Color(p.fog.color);
+    envObjects.scene.fog = new T.Fog(p.fog.color, p.fog.near, p.fog.far);
+  }
+  if (envObjects.ambient) envObjects.ambient.color.setHex(p.ambient);
+  if (envObjects.sun) {
+    envObjects.sun.color.setHex(p.sun);
+    envObjects.sun.intensity = p.lightIntensity;
+  }
+  if (envObjects.dirtMat) envObjects.dirtMat.color.setHex(p.ground);
+  if (envObjects.sceneryGroup) {
+    // Tear down old scenery (geometries + materials) before rebuilding.
+    const g = envObjects.sceneryGroup;
+    while (g.children.length > 0) {
+      const c = g.children[0];
+      c.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+          else o.material.dispose();
+        }
+      });
+      g.remove(c);
+    }
+    pickScenery(g, id);
+  }
 }
 
 /** Update christmas tree bulb materials given current race state. */

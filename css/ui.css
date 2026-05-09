@@ -56,6 +56,63 @@ html, body {
   cursor: pointer; touch-action: manipulation;
 }
 .btn-primary:active { background: #b04020; }
+/* Green purchase variant — overrides .btn-primary's orange/red palette
+ * for explicit "spend money" actions where green reads as "go ahead". */
+.btn-primary.btn-buy { background: #2a8f50; border-color: #4ac070; }
+.btn-primary.btn-buy:active { background: #1f6f3c; }
+.btn-primary.btn-buy:disabled { background: #2a4030; border-color: #3a5040; opacity: 0.6; cursor: not-allowed; }
+
+/* Destructive variant for sell / delete / reset actions. Renders red on
+ * either btn-primary or btn-secondary so it visually screams "be careful". */
+.btn-secondary.btn-danger {
+  background: #3a1410; border-color: #c83a26; color: #ff8a5a;
+}
+.btn-secondary.btn-danger:active { background: #5a1c14; }
+.btn-primary.btn-danger { background: #c83a26; border-color: #ff6a4a; color: #fff; }
+.btn-primary.btn-danger:active { background: #a02818; }
+
+/* Visually separate the affirmative NEXT RACE action from the management
+ * buttons (CUSTOMIZE / BUY NEW CAR) above it. */
+#btn-garage-next-race { margin-top: 22px; }
+
+#screen-prerace {
+  justify-content: flex-start;
+  padding-top: 80px;
+  overflow-y: auto;
+}
+.prerace-preview {
+  width: 100%; max-width: 720px; padding: 0 12px;
+  box-sizing: border-box;
+  display: flex; justify-content: center;
+  margin-bottom: 14px;
+}
+.prerace-preview-canvas {
+  display: block; width: 100%; max-width: 600px;
+  border-radius: 12px;
+  background: #0a0e14;
+}
+.prerace-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+  width: 100%; max-width: 720px; padding: 0 12px; box-sizing: border-box;
+  margin-bottom: 18px;
+}
+.prerace-card {
+  background: #1a1d22;
+  border: 2px solid #2a2f3a;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: system-ui;
+  color: #fff;
+  min-height: 88px;
+}
+.prerace-card-label {
+  color: #888; font-size: 12px; font-weight: 700;
+  letter-spacing: 0.08em; margin-bottom: 6px;
+}
+.prerace-card-body { font-size: 16px; line-height: 1.35; }
+.prerace-card-body .strong { font-weight: 700; }
+.prerace-card-body .gold { color: #ffd14a; font-weight: 700; }
+.prerace-card-body .meta { color: #aaa; font-size: 13px; margin-top: 4px; }
 .version { position: absolute; bottom: 24px; left: 0; right: 0; text-align: center; font-size: 14px; opacity: 0.5; }
 
 .hud-overlay {
@@ -73,15 +130,17 @@ html, body {
   padding: 6px 12px;
   border-radius: 8px;
 }
-.hud-chip.top-left  { top: 24px; left: 24px; }
-.hud-chip.top-right { top: 24px; right: 24px; }
-.hud-chip.top-center { top: 24px; left: 50%; transform: translateX(-50%); }
+/* HUD chips push down below the 56px top bar so they don't collide. */
+.hud-chip.top-right  { top: 76px; right: 24px; }
+.hud-chip.top-center { top: 76px; left: 50%; transform: translateX(-50%); }
+/* Race-time chip ("0.00s") stacks below speed on the right; the original
+ * left position would overlap the tach (now anchored on the left). */
+.hud-chip.top-left { top: 132px; right: 24px; left: auto; }
 
 #tach-container {
   position: absolute;
-  top: 4%;
-  left: 50%; transform: translateX(-50%);
-  width: 55%; aspect-ratio: 1/1;
+  top: 76px; left: 16px;
+  width: 40%; aspect-ratio: 1/1;
   pointer-events: none;
 }
 
@@ -104,11 +163,11 @@ html, body {
 .shift-button.held { background: #5a7090; }
 .gas-button {
   right: 0;
-  background: linear-gradient(180deg, #d65a3a, #7a2010);
-  border-top: 4px solid #ff8a5a;
-  border-left: 4px solid #ff8a5a;
+  background: linear-gradient(180deg, #2a8f50, #134024);
+  border-top: 4px solid #4ac070;
+  border-left: 4px solid #4ac070;
 }
-.gas-button.held { background: #ff5a3a; }
+.gas-button.held { background: #2fb060; }
 
 /* Stacked button labels: prompt hint above, big main label, small key hint */
 .btn-hint {
@@ -143,6 +202,69 @@ html, body {
 }
 .btn-secondary:active { background: #444; }
 .btn-secondary.hidden, .btn-primary.hidden { display: none; }
+
+.btn-corner-back {
+  position: absolute; top: 16px; left: 16px;
+  font-size: 16px; font-weight: 600; padding: 8px 14px;
+  background: transparent; border: 2px solid #888; color: #fff;
+  border-radius: 8px; cursor: pointer; touch-action: manipulation;
+  font-family: system-ui; z-index: 10;
+}
+.btn-corner-back:active { background: #444; }
+
+#screen-cardetail {
+  justify-content: flex-start;
+  padding-top: 88px;
+  overflow-y: auto;
+}
+/* Make the tab body absorb extra vertical space so the tabs above it
+ * stay anchored at a fixed offset from the top regardless of which tab's
+ * content is rendered (parts/tune/paint/sell have different heights). */
+#screen-cardetail #cardetail-tabbody { flex: 1 1 auto; }
+
+.top-bar {
+  position: absolute; top: 0; left: 0; right: 0; height: 56px;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  padding: 0 12px;
+  background: rgba(8, 12, 20, 0.92);
+  border-bottom: 1px solid #2a2f3a;
+  z-index: 50;
+  font-family: system-ui;
+  color: #fff;
+  pointer-events: auto;
+}
+.top-bar.hidden { display: none; }
+#top-bar-left  { justify-self: start; }
+#top-bar-right { justify-self: end; display: flex; align-items: center; gap: 12px; }
+#top-bar-title {
+  justify-self: center;
+  font-size: 20px; font-weight: 700; letter-spacing: 0.06em;
+  text-align: center;
+}
+#top-bar-gold { font-size: 20px; color: #ffd14a; font-weight: 700; }
+.top-bar-btn {
+  background: transparent; border: 2px solid #888; color: #fff;
+  border-radius: 8px; padding: 4px 12px; cursor: pointer;
+  font-size: 22px; font-family: system-ui; line-height: 1;
+  touch-action: manipulation;
+}
+.top-bar-btn.hidden { display: none; }
+.top-bar-btn:active { background: #444; }
+#top-bar-back { font-size: 28px; padding: 2px 14px; }
+
+/* Push menu screens below the top bar so titles aren't hidden under it.
+ * Excludes #screen-title (no top bar) and #hud (race overlay). */
+#screen-firstcar,
+#screen-career-home,
+#screen-garage,
+#screen-buyshop,
+#screen-quickrace,
+#quick-race-track,
+#rotw,
+#shop,
+#settings {
+  padding-top: 72px;
+}
 
 .car-grid {
   display: grid;
@@ -219,6 +341,52 @@ html, body {
 .tune-row input[type=range] { width: 100%; }
 .tune-note { font-size: 14px; opacity: 0.7; margin-top: 16px; padding: 10px; background: #1a1d22; border-radius: 6px; color: #fff; font-family: system-ui; }
 
+.garage-carousel {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; max-width: 720px; padding: 0 12px;
+  box-sizing: border-box;
+}
+.garage-arrow {
+  background: #1a1d22; color: #fff; border: 2px solid #555;
+  border-radius: 10px; padding: 4px 14px;
+  font-size: 40px; font-family: system-ui; line-height: 1;
+  cursor: pointer; touch-action: manipulation;
+  flex-shrink: 0;
+}
+.garage-arrow:active:not(:disabled) { background: #2a2d33; }
+.garage-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+.garage-preview {
+  flex: 1; min-height: 280px;
+  display: flex; align-items: center; justify-content: center;
+}
+.garage-preview .empty { color: #888; font-style: italic; }
+.garage-info {
+  text-align: center; color: #fff; font-family: system-ui;
+  margin: 12px 0;
+}
+.garage-info h3 { font-size: 28px; margin-bottom: 4px; }
+.garage-info .meta { font-size: 16px; opacity: 0.75; }
+.garage-info .current-tag {
+  display: inline-block; margin-top: 6px;
+  padding: 2px 10px; background: #2aa050; color: #fff;
+  border-radius: 6px; font-size: 14px; font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.paint-preview-canvas {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto 14px;
+  background: linear-gradient(180deg, #1a2030 0%, #0d1118 100%);
+  border-radius: 12px;
+}
+.cardetail-preview {
+  width: 100%; max-width: 600px;
+  margin: 0 auto 8px; padding: 0 12px;
+  box-sizing: border-box;
+  display: flex; justify-content: center;
+}
 .paint-row { margin: 12px 0; }
 .paint-label { font-size: 16px; margin-bottom: 6px; font-family: system-ui; color: #fff; }
 .palette-row { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -229,3 +397,68 @@ html, body {
   border: 2px solid #333; border-radius: 6px; cursor: pointer; font-family: system-ui;
   touch-action: manipulation; }
 .stripe-btn.selected { color: #fff; border-color: #ff8a5a; }
+
+.track-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+  margin: 24px 0; padding: 0 32px; max-width: 720px;
+}
+.track-tile {
+  background: #1a1d22; border: 2px solid #333; border-radius: 12px;
+  padding: 18px; cursor: pointer; text-align: center;
+  color: #fff; font-family: system-ui;
+}
+.track-tile h3 { font-size: 22px; margin-bottom: 6px; }
+.track-tile .meta { font-size: 14px; opacity: 0.7; }
+.track-tile.unlocked { border-color: #2aa050; }
+.track-tile.locked { opacity: 0.45; cursor: not-allowed; }
+
+.rotw-info {
+  background: #1a1d22; border-radius: 12px;
+  padding: 18px 24px; margin: 18px 0; min-width: 320px; max-width: 460px;
+  font-size: 20px; font-family: system-ui;
+}
+.rotw-info .label { color: #888; }
+.rotw-info .value { color: #fff; font-weight: 700; }
+.rotw-board {
+  background: #1a1d22; border-radius: 12px;
+  padding: 14px 18px; margin: 12px 0; width: 420px; max-width: 85vw;
+  font-family: system-ui; color: #fff; font-size: 16px;
+  max-height: 240px; overflow-y: auto;
+}
+.rotw-board .row { display: flex; justify-content: space-between; padding: 4px 0; }
+.rotw-board .row.me { color: #ffd14a; font-weight: 700; }
+.rotw-board .empty { opacity: 0.6; font-style: italic; padding: 6px 0; }
+
+#shop {
+  justify-content: flex-start;
+  padding-top: 80px;
+  overflow-y: auto;
+}
+.shop-balance {
+  font-size: 22px; margin: 8px 0 16px; color: #fff; font-family: system-ui;
+}
+.shop-balance .nb { color: #4a9fe0; font-weight: 700; }
+.shop-balance .g  { color: #ffd14a; font-weight: 700; }
+.shop-packs {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+  margin: 14px 0; padding: 0 24px; max-width: 720px; width: 100%;
+  box-sizing: border-box;
+}
+.pack-tile {
+  background: #1a1d22; border: 2px solid #333; border-radius: 12px;
+  padding: 18px 14px; text-align: center; cursor: pointer; color: #fff;
+  font-family: system-ui;
+}
+.pack-tile h3 { font-size: 22px; margin-bottom: 4px; }
+.pack-tile .gold-amt { color: #ffd14a; font-size: 24px; font-weight: 700; margin-top: 6px; }
+.pack-tile .cost { color: #4a9fe0; font-size: 16px; margin-top: 6px; font-weight: 700; }
+.pack-tile.affordable { border-color: #2aa050; }
+.pack-tile.unaffordable { opacity: 0.45; cursor: not-allowed; }
+.shop-foot {
+  font-size: 14px; opacity: 0.6; margin: 14px 0 8px; font-family: system-ui;
+}
+.settings-row {
+  margin: 12px 0; font-family: system-ui; font-size: 20px; color: #fff;
+}
+.settings-row label { display: flex; align-items: center; gap: 12px; }
+.settings-row input[type=range] { width: 220px; }

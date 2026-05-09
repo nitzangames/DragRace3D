@@ -152,11 +152,90 @@ ARCHETYPES.topfuel = function (color1, color2) {
   return g;
 };
 
-/** Build a car given an archetype name and two colors. */
-export function buildCar(archetype, color1, color2) {
+/** Build a car given an archetype name, two colors, and optional stripe variant. */
+export function buildCar(archetype, color1, color2, stripe) {
   const fn = ARCHETYPES[archetype];
   if (!fn) throw new Error('unknown archetype: ' + archetype);
-  return fn(color1, color2);
+  const g = fn(color1, color2);
+  addStripes(g, archetype, stripe || 'none', color1);
+  addLights(g, archetype);
+  // ARCHETYPES build with +Z = nose. In the world, cars move in -Z (the
+  // racing direction) and the chase camera sits at +Z relative to the
+  // player. Spin 180° around Y so the headlights face downrange and the
+  // taillights face the camera. Applies to every archetype (including
+  // topfuel — its long nose now points the right way too).
+  g.rotation.y = Math.PI;
+  return g;
+}
+
+// Top fuel uses its own geometry conventions and has no traditional
+// head/tail lights — skip the lighting helper for it.
+function addLights(g, archetype) {
+  const dims = STRIPE_DIMS[archetype];
+  if (!dims) return;
+  const T = window.THREE;
+  const headMat = new T.MeshBasicMaterial({ color: 0xffe066 });
+  const tailMat = new T.MeshBasicMaterial({ color: 0xc83a26 });
+  const cubeSize = 0.18;
+  const lightY = dims.bodyY + dims.height * 0.2;
+  const sideOffset = dims.width * 0.40;
+  const frontZ = dims.length * 0.5;
+  const rearZ = -dims.length * 0.5;
+  for (const sx of [-sideOffset, sideOffset]) {
+    const head = new T.Mesh(new T.BoxGeometry(cubeSize, cubeSize, cubeSize), headMat);
+    head.position.set(sx, lightY, frontZ);
+    g.add(head);
+    const tail = new T.Mesh(new T.BoxGeometry(cubeSize, cubeSize, cubeSize), tailMat);
+    tail.position.set(sx, lightY, rearZ);
+    g.add(tail);
+  }
+}
+
+// Body box dimensions per archetype, used to position roof stripes. Values
+// must mirror the BoxGeometry sizes inside each ARCHETYPES.* function above
+// (body width, body height, body length, body Y center).
+const STRIPE_DIMS = {
+  sedan:    { width: 1.7,  height: 0.9,  length: 4.0, bodyY: 0.55 },
+  hatch:    { width: 1.85, height: 0.8,  length: 3.6, bodyY: 0.5 },
+  sport:    { width: 1.85, height: 0.7,  length: 4.6, bodyY: 0.45 },
+  muscle:   { width: 1.95, height: 0.85, length: 4.9, bodyY: 0.55 },
+  supercar: { width: 2.05, height: 0.55, length: 4.5, bodyY: 0.4 },
+  // topfuel chassis is a thin spine — no flat hood for stripes.
+};
+
+function _stripeContrast(color1) {
+  const r = ((color1 >> 16) & 0xff) / 255;
+  const g = ((color1 >>  8) & 0xff) / 255;
+  const b = ( color1        & 0xff) / 255;
+  const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+  return lum > 0.55 ? 0x101010 : 0xf5f5f5;
+}
+
+function addStripes(g, archetype, stripeType, color1) {
+  if (!stripeType || stripeType === 'none') return;
+  const dims = STRIPE_DIMS[archetype];
+  if (!dims) return;
+  const T = window.THREE;
+  const mat = new T.MeshLambertMaterial({ color: _stripeContrast(color1) });
+  const yTop = dims.bodyY + dims.height / 2 + 0.006;
+  const length = dims.length * 0.96;
+  if (stripeType === 'center') {
+    const s = new T.Mesh(new T.BoxGeometry(0.20, 0.012, length), mat);
+    s.position.set(0, yTop, 0);
+    g.add(s);
+  } else if (stripeType === 'dual') {
+    for (const sx of [-0.18, 0.18]) {
+      const s = new T.Mesh(new T.BoxGeometry(0.12, 0.012, length), mat);
+      s.position.set(sx, yTop, 0);
+      g.add(s);
+    }
+  } else if (stripeType === 'racing') {
+    for (const sx of [-0.22, 0.22]) {
+      const s = new T.Mesh(new T.BoxGeometry(0.20, 0.012, length), mat);
+      s.position.set(sx, yTop, 0);
+      g.add(s);
+    }
+  }
 }
 
 // ---------- helpers ----------

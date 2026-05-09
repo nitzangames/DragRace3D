@@ -2,6 +2,8 @@
 .superpowers/*
 docs/*
 tests/*
+tests-visual/*
+mockups/*
 node_modules/*
 .DS_Store
 dev-server.sh
@@ -12,3 +14,4 @@ ss-*.png
 screenshot-*.png
 thumbnail.html
 render-thumbnail.js
+README.md

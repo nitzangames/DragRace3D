@@ -85,6 +85,7 @@ export function resetRace(gameData, balance, seed) {
   // Clear cached AI plan so each race samples a fresh one against the
   // current race-balance (handicap scales down with classWins).
   gameData._aiPlan = null;
+  gameData._lastAmbersBeeped = 0;
   // Clear per-race telemetry
   gameData._shiftLog = [[], []];
 }

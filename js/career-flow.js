@@ -1,32 +1,70 @@
 import { balance } from './balance.js';
-import { CLASS_NAMES } from './constants.js';
+import { CLASS_NAMES, CLASS_ENV_TABLE } from './constants.js';
 import { applyPartsToCar } from './parts.js';
 import { applyTuningToCar } from './tuning.js';
 import { pickOpponentCarId } from './balance.js';
+import { pickRandomPaint } from './paint-ui.js';
+import { mountPaintPreview } from './paint-preview.js';
+
+let _firstCarIdx = 0;
 
 /**
- * Render the class-E car grid. Each tile is clickable iff
- * career.gold >= car.price. onPick(carId) is called when an affordable
- * tile is clicked.
+ * Render the class-E first-car picker as a 3D carousel: one car at a time,
+ * with prev/next arrows and a BUY button. Reuses the same preview machinery
+ * the garage / buy-shop carousels use.
  */
-export function renderFirstCarGrid(parent, careerState, onPick) {
-  parent.innerHTML = '';
-  const classECars = balance.cars.filter(c => c.classIndex === 0);
-  for (const car of classECars) {
-    const tile = document.createElement('div');
-    const affordable = careerState.gold >= car.price;
-    tile.className = 'car-tile ' + (affordable ? 'affordable' : 'unaffordable');
-    tile.innerHTML = `
-      <h3>${car.name}</h3>
-      <div class="stats">${car.archetype} · ${car.torquePeakNm}Nm @ ${car.torquePeakRpm}rpm · ${car.mass}kg</div>
-      <div class="price">${formatGold(car.price)}g</div>
-    `;
-    if (affordable) {
-      tile.addEventListener('click', () => onPick(car.id));
-    }
-    parent.appendChild(tile);
-  }
+export function renderFirstCarPicker(careerState, onPick) {
+  const cars = balance.cars.filter(c => c.classIndex === 0);
+  if (_firstCarIdx >= cars.length) _firstCarIdx = 0;
+  _renderFirstCarCurrent(cars, careerState, onPick);
 }
+
+function _renderFirstCarCurrent(cars, careerState, onPick) {
+  const car = cars[_firstCarIdx];
+  const previewParent = document.getElementById('firstcar-preview');
+  const info = document.getElementById('firstcar-info');
+  const prevBtn = document.getElementById('firstcar-prev');
+  const nextBtn = document.getElementById('firstcar-next');
+  const buyBtn = document.getElementById('btn-firstcar-buy');
+
+  previewParent.innerHTML = '';
+  mountPaintPreview(previewParent, car.archetype, {
+    primary: car.color1, secondary: car.color2, stripe: 'none',
+  });
+
+  const affordable = careerState.gold >= car.price;
+  info.innerHTML = `
+    <h3>${car.name}</h3>
+    <div class="meta">${car.archetype} · ${car.torquePeakNm}Nm @ ${car.torquePeakRpm}rpm · ${car.mass}kg · ${_firstCarIdx + 1}/${cars.length}</div>
+    <div class="meta" style="margin-top:6px;font-size:18px;color:#ffd14a;font-weight:700;">${formatGold(car.price)}g</div>
+  `;
+
+  const single = cars.length <= 1;
+  prevBtn.disabled = single;
+  nextBtn.disabled = single;
+  prevBtn.onclick = () => {
+    _firstCarIdx = (_firstCarIdx - 1 + cars.length) % cars.length;
+    _renderFirstCarCurrent(cars, careerState, onPick);
+  };
+  nextBtn.onclick = () => {
+    _firstCarIdx = (_firstCarIdx + 1) % cars.length;
+    _renderFirstCarCurrent(cars, careerState, onPick);
+  };
+
+  if (affordable) {
+    buyBtn.textContent = `BUY (${formatGold(car.price)}g)`;
+    buyBtn.disabled = false;
+  } else {
+    buyBtn.textContent = `NEED ${formatGold(car.price - careerState.gold)}g MORE`;
+    buyBtn.disabled = true;
+  }
+  buyBtn.onclick = () => {
+    if (!affordable) return;
+    onPick(car.id);
+  };
+}
+
+export function resetFirstCarPicker() { _firstCarIdx = 0; }
 
 export function formatGold(n) {
   return n.toLocaleString('en-US');
@@ -68,6 +106,7 @@ export function buildRaceBalance(careerState, seed) {
   const playerFinal = applyTuningToCar(playerWithParts, ownedCar.tune);
   playerFinal.color1 = ownedCar.paint.primary;
   playerFinal.color2 = ownedCar.paint.secondary;
+  playerFinal.stripe = ownedCar.paint.stripe || 'none';
 
   // Opponent races the SAME car as the player but with a parts loadout that
   // scales with classWins. Race 1 (0 wins) → AI all stock — pure RT/shift
@@ -78,6 +117,9 @@ export function buildRaceBalance(careerState, seed) {
   const opponentParts = aiPartsForWins(careerState.classWins);
   const opponentWithParts = applyPartsToCar(opponentBase, opponentParts, balance.parts);
   const opponentFinal = applyTuningToCar(opponentWithParts, balance.defaultTune(opponentBase));
+  const oppPaint = pickRandomPaint(seed, playerFinal.color1);
+  opponentFinal.color1 = oppPaint.primary;
+  opponentFinal.color2 = oppPaint.secondary;
 
   // Early-career AI handicap: slower reaction time and earlier (suboptimal)
   // shift point. This decays to zero by classWins=5. Combined with the parts
@@ -96,6 +138,33 @@ export function buildRaceBalance(careerState, seed) {
   };
 
   return { ...balance, cars: [playerFinal, opponentFinal], ai: handicappedAi };
+}
+
+/**
+ * Quick-race balance using the player's customized career car against an
+ * identical (same parts + tune) AI car with different colors. No handicap,
+ * no class scaling — pure shift-and-launch skill match. Used by the
+ * "QUICK RACE" button on the career home screen for grinding gold.
+ */
+export function buildCareerQuickRaceBalance(careerState, seed) {
+  const ownedCar = careerState.ownedCars.find(c => c.carId === careerState.currentCarId);
+  if (!ownedCar) throw new Error('career quick race needs a current car');
+  const playerBase = balance.cars.find(c => c.id === ownedCar.carId);
+  const playerWithParts = applyPartsToCar(playerBase, ownedCar.parts, balance.parts);
+  const playerFinal = applyTuningToCar(playerWithParts, ownedCar.tune);
+  playerFinal.color1 = ownedCar.paint.primary;
+  playerFinal.color2 = ownedCar.paint.secondary;
+  playerFinal.stripe = ownedCar.paint.stripe || 'none';
+
+  // Opponent: identical parts loadout (so the cars are truly equal), default
+  // tune (no player-specific tuning advantage), random palette colors.
+  const opponentFinal = applyTuningToCar(playerWithParts, balance.defaultTune(playerBase));
+  const oppPaint = pickRandomPaint(seed, playerFinal.color1);
+  opponentFinal.color1 = oppPaint.primary;
+  opponentFinal.color2 = oppPaint.secondary;
+  opponentFinal.stripe = 'none';
+
+  return { ...balance, cars: [playerFinal, opponentFinal] };
 }
 
 /**
@@ -120,4 +189,9 @@ function aiPartsForWins(wins) {
     tier++;
   }
   return parts;
+}
+
+/** Pick env preset id for the next career race based on classIndex. */
+export function pickEnvForCareerRace(careerState) {
+  return CLASS_ENV_TABLE[careerState.classIndex] || 'day';
 }

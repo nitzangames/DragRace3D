@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Drag Race 3D — Urban Scenery Variants</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  html,body { margin:0; padding:0; height:100%; background:#0a0e14; color:#fff; font-family:system-ui; overflow:hidden; }
+  #root { position:fixed; inset:0; }
+  canvas { display:block; }
+  #panel {
+    position:fixed; top:16px; left:50%; transform:translateX(-50%);
+    background:rgba(8,12,20,0.85); border:1px solid #2a2f3a; border-radius:10px;
+    padding:8px; display:flex; gap:6px; z-index:10;
+  }
+  .mock-btn {
+    background:#1a1d22; color:#fff; border:2px solid #555; border-radius:8px;
+    padding:8px 14px; font:600 13px system-ui; cursor:pointer;
+    letter-spacing:0.04em; touch-action:manipulation;
+  }
+  .mock-btn.active { border-color:#2aa050; background:#1a3520; }
+  .mock-btn:hover:not(.active) { border-color:#888; }
+  #info {
+    position:fixed; bottom:16px; left:50%; transform:translateX(-50%);
+    background:rgba(8,12,20,0.85); border:1px solid #2a2f3a; border-radius:10px;
+    padding:10px 16px; max-width:680px; font-size:14px; line-height:1.4;
+    text-align:center;
+  }
+  #info .label { color:#888; font-size:11px; letter-spacing:0.08em; margin-bottom:4px; }
+  #info .desc { color:#fff; }
+  #back {
+    position:fixed; top:16px; left:16px; z-index:10;
+    background:transparent; border:2px solid #888; color:#fff;
+    border-radius:8px; padding:6px 12px; font:600 14px system-ui; cursor:pointer;
+    text-decoration:none;
+  }
+</style>
+</head>
+<body>
+<a id="back" href="./index.html">‹ THEMES</a>
+<div id="root"></div>
+<div id="panel">
+  <button class="mock-btn active" data-urban="industrial">A · INDUSTRIAL</button>
+  <button class="mock-btn" data-urban="junkyard">B · JUNKYARD</button>
+  <button class="mock-btn" data-urban="skyline">C · SKYLINE</button>
+  <button class="mock-btn" data-urban="highway">D · HIGHWAY</button>
+</div>
+<div id="info">
+  <div class="label">URBAN SCENERY VARIANT</div>
+  <div id="info-desc" class="desc"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const T = window.THREE;
+const root = document.getElementById('root');
+const renderer = new T.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+function resize() { renderer.setSize(window.innerWidth, window.innerHeight); }
+resize();
+window.addEventListener('resize', resize);
+root.appendChild(renderer.domElement);
+
+let scene, camera, sceneryGroup;
+const orbitCenter = new T.Vector3(0, 4, -55);
+const orbitRadius = 50;
+const orbitHeight = 16;
+let orbitAngle = 0.6;
+
+function buildBaseScene() {
+  scene = new T.Scene();
+  scene.background = new T.Color(0xc0c0b8);
+  scene.fog = new T.Fog(0xc0c0b8, 60, 380);
+
+  scene.add(new T.AmbientLight(0xa0a0a0, 0.55));
+  scene.add(new T.HemisphereLight(0xa8c8ff, 0x3a3020, 0.4));
+  const sun = new T.DirectionalLight(0xfff0d0, 0.95);
+  sun.position.set(40, 60, 30);
+  scene.add(sun);
+
+  // Strip + dirt + tree + cars
+  const stripCanvas = document.createElement('canvas');
+  stripCanvas.width = 256; stripCanvas.height = 1024;
+  const sc = stripCanvas.getContext('2d');
+  sc.fillStyle = '#2d2d31'; sc.fillRect(0, 0, 256, 1024);
+  for (let i = 0; i < 1500; i++) {
+    sc.fillStyle = `rgba(255,255,255,${(Math.random()*0.06).toFixed(3)})`;
+    sc.fillRect(Math.random()*256, Math.random()*1024, 2, 2);
+  }
+  sc.fillStyle = '#d6b22f'; sc.fillRect(126, 0, 4, 1024);
+  sc.fillStyle = '#dddddd'; sc.fillRect(8, 0, 4, 1024); sc.fillRect(244, 0, 4, 1024);
+  const stripTex = new T.CanvasTexture(stripCanvas);
+  stripTex.wrapS = stripTex.wrapT = T.RepeatWrapping;
+  stripTex.repeat.set(1, 60); stripTex.anisotropy = 4;
+  const strip = new T.Mesh(new T.PlaneGeometry(15, 700),
+    new T.MeshLambertMaterial({ map: stripTex }));
+  strip.rotation.x = -Math.PI/2; strip.position.set(0, 0, -300);
+  scene.add(strip);
+
+  const dirt = new T.Mesh(new T.PlaneGeometry(300, 700),
+    new T.MeshLambertMaterial({ color: 0x60554a }));
+  dirt.rotation.x = -Math.PI/2; dirt.position.set(0, -0.05, -300);
+  scene.add(dirt);
+
+  // Tree
+  const tree = new T.Group();
+  const post = new T.Mesh(new T.BoxGeometry(0.4, 6, 0.4),
+    new T.MeshLambertMaterial({ color: 0x202020 }));
+  post.position.y = 3; tree.add(post);
+  for (let i = 0; i < 5; i++) for (const sx of [-1, 1]) {
+    const c = i < 3 ? 0xffaa00 : (i === 4 ? 0x22ee48 : 0x551100);
+    const bulb = new T.Mesh(new T.SphereGeometry(0.22, 12, 8),
+      new T.MeshBasicMaterial({ color: c }));
+    bulb.position.set(sx*0.5, 5.5 - i*0.9, 0);
+    tree.add(bulb);
+  }
+  tree.position.set(0, 0, -1.5);
+  scene.add(tree);
+
+  for (const cx of [-2.5, 2.5]) {
+    const car = new T.Group();
+    const body = new T.Mesh(new T.BoxGeometry(1.7, 0.9, 4),
+      new T.MeshLambertMaterial({ color: cx > 0 ? 0xc83a26 : 0x4d6dd6 }));
+    body.position.y = 0.55; car.add(body);
+    const cabin = new T.Mesh(new T.BoxGeometry(1.55, 0.95, 2),
+      new T.MeshLambertMaterial({ color: 0x222222 }));
+    cabin.position.set(0, 1.45, -0.05); car.add(cabin);
+    car.position.set(cx, 0, 2);
+    scene.add(car);
+  }
+
+  sceneryGroup = new T.Group();
+  scene.add(sceneryGroup);
+
+  camera = new T.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 600);
+}
+
+// ===========================================================================
+// VARIANT A: INDUSTRIAL — warehouses, smokestacks, billboards, jersey barriers
+// ===========================================================================
+function buildIndustrial() {
+  const g = sceneryGroup;
+  const warehouseMats = [
+    new T.MeshLambertMaterial({ color: 0x4a4540 }),
+    new T.MeshLambertMaterial({ color: 0x6a5a3a }),
+    new T.MeshLambertMaterial({ color: 0x3a3a40 }),
+    new T.MeshLambertMaterial({ color: 0x5a4a3a }),
+  ];
+
+  // Warehouses staggered along both sides — body orientation kept as-is
+  // (long facade perpendicular to strip), but the bay door is rebuilt as
+  // a thin-along-X panel so its broad face turns toward the strip.
+  for (let s = 0; s < 14; s++) {
+    const sx = (s % 2 === 0 ? -1 : 1) * (28 + (s % 4) * 6);
+    const sz = -15 - s * 28;
+    const w = 18 + (s % 3) * 6;
+    const h = 8 + (s % 4) * 3;
+    const d = 14;
+    const mat = warehouseMats[s % 4];
+    const wh = new T.Mesh(new T.BoxGeometry(w, h, d), mat);
+    wh.position.set(sx, h/2, sz); g.add(wh);
+    const roof = new T.Mesh(new T.BoxGeometry(w, 0.4, d),
+      new T.MeshLambertMaterial({ color: 0x222222 }));
+    roof.position.set(sx, h + 0.2, sz); g.add(roof);
+    // Bay door — thin along X (perpendicular to strip), so its broad face
+    // points toward the strip. Sits flush against the strip-facing wall.
+    const door = new T.Mesh(new T.BoxGeometry(0.05, 4, 4),
+      new T.MeshLambertMaterial({ color: 0x6a4030 }));
+    door.position.set(sx + (sx > 0 ? -w/2 - 0.025 : w/2 + 0.025), 2, sz);
+    g.add(door);
+  }
+
+  // Billboards — built as a sub-group so the posts and panel rotate
+  // together. Previously only the panel was rotated, so the posts ended
+  // up offset from the billboard's tilted endpoints.
+  const billboardColors = [0xff5040, 0xffd14a, 0x4060ff, 0xffffff];
+  const postMat = new T.MeshLambertMaterial({ color: 0x202020 });
+  for (let i = 0; i < 5; i++) {
+    const x = (i % 2 === 0 ? -1 : 1) * 35;
+    const z = -50 - i * 60;
+    const sign = new T.Group();
+    const post1 = new T.Mesh(new T.BoxGeometry(0.4, 8, 0.4), postMat);
+    post1.position.set(-3, 4, 0); sign.add(post1);
+    const post2 = new T.Mesh(new T.BoxGeometry(0.4, 8, 0.4), postMat);
+    post2.position.set(3, 4, 0); sign.add(post2);
+    const bb = new T.Mesh(new T.BoxGeometry(8, 4, 0.3),
+      new T.MeshLambertMaterial({ color: billboardColors[i % 4] }));
+    bb.position.set(0, 9, 0); sign.add(bb);
+    sign.position.set(x, 0, z);
+    sign.rotation.y = x > 0 ? -Math.PI/8 : Math.PI/8;
+    g.add(sign);
+  }
+
+  // Smokestacks
+  for (let i = 0; i < 4; i++) {
+    const x = -90 + i * 60;
+    const stack = new T.Mesh(new T.CylinderGeometry(2, 2.5, 28, 12),
+      new T.MeshLambertMaterial({ color: 0x6a4a3a }));
+    stack.position.set(x, 14, -340); g.add(stack);
+    const smoke = new T.Mesh(new T.SphereGeometry(4, 8, 6),
+      new T.MeshBasicMaterial({ color: 0x666666, transparent: true, opacity: 0.4 }));
+    smoke.position.set(x + 2, 32, -340); g.add(smoke);
+  }
+
+  // Jersey barriers — long edge runs along Z (parallel to the strip),
+  // short edge perpendicular. Each segment is 4m long with a 1m gap.
+  for (let z = -10; z >= -340; z -= 5) {
+    for (const bx of [-9, 9]) {
+      const j = new T.Mesh(new T.BoxGeometry(0.8, 1.2, 4),
+        new T.MeshLambertMaterial({ color: 0x9a9a96 }));
+      j.position.set(bx, 0.6, z); g.add(j);
+    }
+  }
+
+  // Distant overpass
+  const overpass = new T.Mesh(new T.BoxGeometry(140, 4, 8),
+    new T.MeshLambertMaterial({ color: 0x4a4a52 }));
+  overpass.position.set(0, 18, -360); g.add(overpass);
+  for (let px = -50; px <= 50; px += 25) {
+    const pier = new T.Mesh(new T.BoxGeometry(4, 18, 8),
+      new T.MeshLambertMaterial({ color: 0x4a4a52 }));
+    pier.position.set(px, 9, -360); g.add(pier);
+  }
+}
+
+// ===========================================================================
+// VARIANT B: JUNKYARD — chain-link fences, stacked junkers, containers, drums
+// ===========================================================================
+function buildJunkyard() {
+  const g = sceneryGroup;
+
+  // Chain-link fence — pole + horizontal rails (rendered as sparse vertical
+  // strips for the wire). Long perimeter on both sides of the strip.
+  const fencePoleMat = new T.MeshLambertMaterial({ color: 0x404040 });
+  const wireMat = new T.MeshBasicMaterial({ color: 0x8a8a8a });
+  for (let z = -10; z >= -360; z -= 4) {
+    for (const fx of [-13, 13]) {
+      const pole = new T.Mesh(new T.BoxGeometry(0.15, 3, 0.15), fencePoleMat);
+      pole.position.set(fx, 1.5, z); g.add(pole);
+    }
+  }
+  // Horizontal top + bottom rails (long boxes)
+  for (const fx of [-13, 13]) {
+    const top = new T.Mesh(new T.BoxGeometry(0.1, 0.1, 350), fencePoleMat);
+    top.position.set(fx, 2.9, -185); g.add(top);
+    const bot = new T.Mesh(new T.BoxGeometry(0.1, 0.1, 350), fencePoleMat);
+    bot.position.set(fx, 0.4, -185); g.add(bot);
+    // Sparse wire mesh — diagonal lines suggesting chain link
+    for (let z = -10; z >= -360; z -= 0.6) {
+      const wire = new T.Mesh(new T.BoxGeometry(0.04, 2.4, 0.04), wireMat);
+      wire.position.set(fx, 1.6, z);
+      wire.rotation.x = (z % 1.2 < 0.6) ? 0.6 : -0.6;
+      g.add(wire);
+    }
+  }
+
+  // Stacked junker car bodies (random colors, varying tilt)
+  const carBodyColors = [0xc83a26, 0x6a4a30, 0x4d6dd6, 0xffd14a, 0x33dd55,
+                         0x6a6a6a, 0x804040, 0x405580];
+  const junkSpots = [
+    [-22, -30], [25, -50], [-26, -75], [22, -110], [-30, -140],
+    [28, -170], [-24, -200], [26, -230], [-28, -260], [24, -290],
+    [-32, -330], [30, -360],
+  ];
+  for (const [bx, bz] of junkSpots) {
+    // Stack 2-3 car bodies
+    const stackHeight = 2 + Math.floor(Math.random() * 2);
+    for (let st = 0; st < stackHeight; st++) {
+      const c = carBodyColors[Math.floor(Math.random() * carBodyColors.length)];
+      const body = new T.Mesh(new T.BoxGeometry(4, 1.2, 1.7),
+        new T.MeshLambertMaterial({ color: c }));
+      body.position.set(bx + (st * 0.3 - 0.4),
+                        0.6 + st * 1.4, bz + (st * 0.2 - 0.3));
+      body.rotation.y = (Math.random() - 0.5) * 0.4;
+      body.rotation.z = (Math.random() - 0.5) * 0.15;
+      g.add(body);
+      // Cabin
+      const cabin = new T.Mesh(new T.BoxGeometry(2, 0.7, 1.55),
+        new T.MeshLambertMaterial({ color: 0x222222 }));
+      cabin.position.set(bx + (st * 0.3 - 0.4),
+                         1.55 + st * 1.4, bz + (st * 0.2 - 0.3));
+      cabin.rotation.copy(body.rotation);
+      g.add(cabin);
+    }
+  }
+
+  // Shipping containers (stacked, colorful)
+  const containerColors = [0xc83a26, 0x2a8fd4, 0xff7f00, 0x33aa55, 0x806030];
+  const containerSpots = [
+    [-32, -90], [34, -130], [-36, -180], [32, -250], [-34, -310],
+  ];
+  for (const [cxp, czp] of containerSpots) {
+    for (let st = 0; st < 2 + Math.floor(Math.random() * 2); st++) {
+      const c = containerColors[Math.floor(Math.random() * containerColors.length)];
+      const cont = new T.Mesh(new T.BoxGeometry(6, 2.6, 2.5),
+        new T.MeshLambertMaterial({ color: c }));
+      cont.position.set(cxp + (st * 0.4 - 0.6), 1.3 + st * 2.7, czp);
+      cont.rotation.y = (Math.random() - 0.5) * 0.3;
+      g.add(cont);
+      // Ribbed lines on the container (a thin dark stripe at mid-height)
+      const stripe = new T.Mesh(new T.BoxGeometry(6.05, 0.1, 2.55),
+        new T.MeshLambertMaterial({ color: 0x222222 }));
+      stripe.position.copy(cont.position);
+      stripe.rotation.copy(cont.rotation);
+      g.add(stripe);
+    }
+  }
+
+  // Oil drums (small cylinders scattered)
+  const drumMat = new T.MeshLambertMaterial({ color: 0x4a3020 });
+  for (let i = 0; i < 30; i++) {
+    const x = (Math.random() < 0.5 ? -1 : 1) * (16 + Math.random() * 8);
+    const z = -20 - Math.random() * 320;
+    const drum = new T.Mesh(new T.CylinderGeometry(0.45, 0.45, 1.0, 12), drumMat);
+    drum.position.set(x, 0.5, z);
+    drum.rotation.z = (Math.random() < 0.15) ? Math.PI/2 : 0;
+    g.add(drum);
+  }
+
+  // Pallet stacks (small wood-color boxes)
+  const palletMat = new T.MeshLambertMaterial({ color: 0x8a6a3a });
+  for (const [pxp, pzp] of [[-20, -55], [22, -100], [-22, -160], [24, -220]]) {
+    for (let st = 0; st < 4; st++) {
+      const p = new T.Mesh(new T.BoxGeometry(1.2, 0.18, 1.0), palletMat);
+      p.position.set(pxp, 0.1 + st * 0.18, pzp);
+      g.add(p);
+    }
+  }
+}
+
+// ===========================================================================
+// VARIANT C: SKYLINE — taller buildings, neon, urban canyon
+// ===========================================================================
+function buildSkyline() {
+  const g = sceneryGroup;
+  const buildingMats = [
+    new T.MeshLambertMaterial({ color: 0x3a4250 }),
+    new T.MeshLambertMaterial({ color: 0x4a5260 }),
+    new T.MeshLambertMaterial({ color: 0x2a3240 }),
+    new T.MeshLambertMaterial({ color: 0x5a4a3a }),
+    new T.MeshLambertMaterial({ color: 0x303a48 }),
+  ];
+
+  // Mid-height buildings flanking the strip — built as sub-groups in
+  // local space (long axis along local X with windows on the +Z face)
+  // then rotated 90° around Y so the long facade runs parallel to the
+  // strip and the window face turns toward the track.
+  const winMat = new T.MeshBasicMaterial({ color: 0xffe080 });
+  const winGeo = new T.BoxGeometry(0.7, 0.6, 0.05);
+  for (let s = 0; s < 16; s++) {
+    const sx = (s % 2 === 0 ? -1 : 1) * (24 + (s % 3) * 4);
+    const sz = -15 - s * 22;
+    const w = 14 + (s % 3) * 4;   // long-facade dimension
+    const h = 22 + (s % 5) * 8;
+    const d = 14;                  // short dimension
+    const mat = buildingMats[s % buildingMats.length];
+
+    const bldg = new T.Group();
+    const box = new T.Mesh(new T.BoxGeometry(w, h, d), mat);
+    box.position.y = h / 2;
+    bldg.add(box);
+
+    // Windows on the face that will end up facing the strip after the
+    // group is rotated. For a building on the +X (right) side of the
+    // strip, that face is local -Z; for a building on the -X (left)
+    // side, that face is local +Z.
+    const winFaceZ = sx > 0 ? -d/2 - 0.05 : d/2 + 0.05;
+    const rows = Math.floor(h / 2.5) - 1;
+    const cols = Math.floor(w / 2) - 1;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (Math.random() < 0.5) {
+          const win = new T.Mesh(winGeo, winMat);
+          win.position.set(-w/2 + 1.2 + c * 1.9, 1.2 + r * 2.4, winFaceZ);
+          bldg.add(win);
+        }
+      }
+    }
+
+    // Rooftop AC + occasional antenna (in local space)
+    const rooftop = new T.Mesh(new T.BoxGeometry(2, 1, 2),
+      new T.MeshLambertMaterial({ color: 0x6a6a6a }));
+    rooftop.position.set(s % 2 ? 2 : -2, h + 0.5, 2); bldg.add(rooftop);
+    if (s % 3 === 0) {
+      const antenna = new T.Mesh(new T.BoxGeometry(0.15, 4, 0.15),
+        new T.MeshLambertMaterial({ color: 0x303030 }));
+      antenna.position.set(0, h + 2, -2); bldg.add(antenna);
+    }
+
+    bldg.position.set(sx, 0, sz);
+    bldg.rotation.y = Math.PI / 2;  // long facade now runs parallel to strip
+    g.add(bldg);
+  }
+
+  // Vertical neon signs on a few buildings
+  const neonColors = [0xff20a0, 0x40ffff, 0xffff40, 0xff8040, 0x80ff40];
+  for (let i = 0; i < 5; i++) {
+    const x = (i % 2 === 0 ? -1 : 1) * (24 + (i % 3) * 4);
+    const z = -30 - i * 70;
+    const sign = new T.Mesh(new T.BoxGeometry(0.3, 12, 2.5),
+      new T.MeshBasicMaterial({ color: neonColors[i] }));
+    sign.position.set(x + (x > 0 ? -7 : 7), 16, z + 7);
+    g.add(sign);
+  }
+
+  // Tall streetlights between buildings
+  for (let z = -25; z >= -340; z -= 30) {
+    for (const px of [-18, 18]) {
+      const pole = new T.Mesh(new T.BoxGeometry(0.3, 9, 0.3),
+        new T.MeshLambertMaterial({ color: 0x202020 }));
+      pole.position.set(px, 4.5, z); g.add(pole);
+      const arm = new T.Mesh(new T.BoxGeometry(0.15, 0.15, 1.4),
+        new T.MeshLambertMaterial({ color: 0x202020 }));
+      arm.position.set(px + (px > 0 ? -0.6 : 0.6), 8.8, z); g.add(arm);
+      const bulb = new T.Mesh(new T.SphereGeometry(0.4, 12, 8),
+        new T.MeshBasicMaterial({ color: 0xffd980 }));
+      bulb.position.set(px + (px > 0 ? -1.2 : 1.2), 8.8, z); g.add(bulb);
+    }
+  }
+
+  // Distant skyline silhouette behind the foreground buildings
+  const skylineMat = new T.MeshLambertMaterial({ color: 0x1a2230 });
+  for (let i = 0; i < 14; i++) {
+    const x = -130 + i * 20;
+    const h = 38 + (i % 5) * 12;
+    const sky = new T.Mesh(new T.BoxGeometry(20, h, 12), skylineMat);
+    sky.position.set(x, h/2, -390); g.add(sky);
+  }
+}
+
+// ===========================================================================
+// VARIANT D: HIGHWAY — overpass crossing strip, freeway signs, gas station
+// ===========================================================================
+function buildHighway() {
+  const g = sceneryGroup;
+
+  // Two parallel freeways running alongside the strip on each side
+  const freewayMat = new T.MeshLambertMaterial({ color: 0x303034 });
+  const lineMat = new T.MeshBasicMaterial({ color: 0xffe040 });
+  const guardMat = new T.MeshLambertMaterial({ color: 0x8a8a86 });
+  for (const side of [-1, 1]) {
+    // Lifted freeway surface
+    const freeway = new T.Mesh(new T.BoxGeometry(10, 0.4, 350), freewayMat);
+    freeway.position.set(side * 30, 5, -185); g.add(freeway);
+    // Yellow lane line down the middle
+    const line = new T.Mesh(new T.BoxGeometry(0.2, 0.05, 350), lineMat);
+    line.position.set(side * 30, 5.25, -185); g.add(line);
+    // Concrete guardrails along both edges of the freeway
+    for (const railOff of [-4.7, 4.7]) {
+      const guard = new T.Mesh(new T.BoxGeometry(0.6, 1.2, 350), guardMat);
+      guard.position.set(side * 30 + railOff, 5.6, -185); g.add(guard);
+    }
+    // Support pillars holding up the freeway
+    for (let pz = -20; pz >= -350; pz -= 30) {
+      const pillar = new T.Mesh(new T.BoxGeometry(2.5, 5, 2.5), guardMat);
+      pillar.position.set(side * 30, 2.5, pz); g.add(pillar);
+    }
+  }
+
+  // Overpass crossing the strip at z=-180
+  const overpass = new T.Mesh(new T.BoxGeometry(80, 1.5, 12),
+    new T.MeshLambertMaterial({ color: 0x404048 }));
+  overpass.position.set(0, 14, -180); g.add(overpass);
+  for (const px of [-25, -5, 15, 35]) {
+    const pier = new T.Mesh(new T.BoxGeometry(4, 14, 5),
+      new T.MeshLambertMaterial({ color: 0x4a4a52 }));
+    pier.position.set(px - 2, 7, -180); g.add(pier);
+  }
+  // Overpass guardrails
+  for (const ry of [13.5, 14.5]) {
+    const rail = new T.Mesh(new T.BoxGeometry(80, 0.2, 0.2),
+      new T.MeshLambertMaterial({ color: 0x303030 }));
+    rail.position.set(0, ry, -174); g.add(rail);
+    const rail2 = rail.clone(); rail2.position.z = -186; g.add(rail2);
+  }
+
+  // Big freeway signs (green panels with white "lettering" — small white cubes
+  // on the green to suggest text, since we can't render text easily)
+  for (let i = 0; i < 4; i++) {
+    const x = (i % 2 === 0 ? -1 : 1) * 40;
+    const z = -50 - i * 80;
+    // Two posts
+    for (const off of [-5, 5]) {
+      const post = new T.Mesh(new T.BoxGeometry(0.5, 14, 0.5),
+        new T.MeshLambertMaterial({ color: 0x404040 }));
+      post.position.set(x + off, 7, z); g.add(post);
+    }
+    // Green sign panel
+    const sign = new T.Mesh(new T.BoxGeometry(12, 4, 0.4),
+      new T.MeshLambertMaterial({ color: 0x1a6a3a }));
+    sign.position.set(x, 13, z); g.add(sign);
+    // White trim border
+    const border = new T.Mesh(new T.BoxGeometry(12.4, 4.4, 0.3),
+      new T.MeshLambertMaterial({ color: 0xeeeeee }));
+    border.position.set(x, 13, z - 0.05); g.add(border);
+    // Mock "lettering" — a few white blocks
+    for (let bi = 0; bi < 5; bi++) {
+      const ltr = new T.Mesh(new T.BoxGeometry(0.7, 1.8, 0.05),
+        new T.MeshBasicMaterial({ color: 0xeeeeee }));
+      ltr.position.set(x - 4 + bi * 1.6, 13, z + 0.21); g.add(ltr);
+    }
+  }
+
+  // Gas station — canopy on 4 columns + sign tower + pumps. Built as a
+  // sub-group in local space then rotated 90° so the broad face of the
+  // sign panel faces the strip instead of pointing down it.
+  const gasX = -18, gasZ = -110;
+  const gas = new T.Group();
+  const canopy = new T.Mesh(new T.BoxGeometry(14, 0.6, 14),
+    new T.MeshLambertMaterial({ color: 0xeeeeee }));
+  canopy.position.set(0, 5, 0); gas.add(canopy);
+  for (const cdx of [-6, 6]) for (const cdz of [-6, 6]) {
+    const col = new T.Mesh(new T.BoxGeometry(0.5, 5, 0.5),
+      new T.MeshLambertMaterial({ color: 0xc0c0bc }));
+    col.position.set(cdx, 2.5, cdz); gas.add(col);
+  }
+  // Pumps under the canopy
+  for (const pdx of [-3, 3]) for (const pdz of [-3, 3]) {
+    const pump = new T.Mesh(new T.BoxGeometry(1, 1.6, 0.6),
+      new T.MeshLambertMaterial({ color: 0xc83a26 }));
+    pump.position.set(pdx, 0.8, pdz); gas.add(pump);
+  }
+  // Sign tower
+  const towerPole = new T.Mesh(new T.BoxGeometry(0.4, 14, 0.4),
+    new T.MeshLambertMaterial({ color: 0x404040 }));
+  towerPole.position.set(-9, 7, 0); gas.add(towerPole);
+  const signFace = new T.Mesh(new T.BoxGeometry(4, 3, 0.3),
+    new T.MeshLambertMaterial({ color: 0xffd14a }));
+  signFace.position.set(-9, 13, 0); gas.add(signFace);
+  const signLogo = new T.Mesh(new T.BoxGeometry(2, 1.5, 0.1),
+    new T.MeshBasicMaterial({ color: 0xc83a26 }));
+  signLogo.position.set(-9, 13, 0.21); gas.add(signLogo);
+
+  gas.position.set(gasX, 0, gasZ);
+  gas.rotation.y = Math.PI / 2;
+  g.add(gas);
+
+  // Distant city silhouette
+  const skyMat = new T.MeshLambertMaterial({ color: 0x4a4a52 });
+  for (let i = 0; i < 10; i++) {
+    const x = -110 + i * 24;
+    const h = 24 + (i % 4) * 10;
+    const b = new T.Mesh(new T.BoxGeometry(22, h, 14), skyMat);
+    b.position.set(x, h/2, -380); g.add(b);
+  }
+}
+
+const DESCRIPTIONS = {
+  industrial:
+    'A · Industrial: warehouses with bay doors and roof ridges, smokestacks with smoke plumes, billboards on twin posts, jersey barriers along strip, distant overpass.',
+  junkyard:
+    'B · Junkyard: chain-link fences with X-pattern wire, stacked junker car bodies, colorful shipping containers, oil drums, pallet stacks. Outlaw lot vibe.',
+  skyline:
+    'C · Skyline: tall mixed-height office buildings with lit windows, vertical neon signs, streetlights on pole arms, deep silhouette skyline at the horizon.',
+  highway:
+    'D · Highway: elevated freeways running parallel to the strip on both sides, overpass crossing the track at midpoint, big green road signs, gas station with canopy + sign tower.',
+};
+
+function setUrban(name) {
+  buildBaseScene();
+  if      (name === 'industrial') buildIndustrial();
+  else if (name === 'junkyard')   buildJunkyard();
+  else if (name === 'skyline')    buildSkyline();
+  else if (name === 'highway')    buildHighway();
+  document.getElementById('info-desc').textContent = DESCRIPTIONS[name];
+  document.querySelectorAll('.mock-btn').forEach((b) => {
+    b.classList.toggle('active', b.dataset.urban === name);
+  });
+}
+
+document.querySelectorAll('.mock-btn').forEach((b) => {
+  b.addEventListener('click', () => setUrban(b.dataset.urban));
+});
+
+setUrban('industrial');
+
+function tick() {
+  orbitAngle += 0.0035;
+  camera.position.set(
+    orbitCenter.x + Math.sin(orbitAngle) * orbitRadius,
+    orbitCenter.y + orbitHeight,
+    orbitCenter.z + Math.cos(orbitAngle) * orbitRadius
+  );
+  camera.lookAt(orbitCenter);
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+tick();
+</script>
+</body>
+</html>

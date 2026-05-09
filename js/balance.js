@@ -43,40 +43,48 @@ const cars = [
 ];
 
 // Parts catalog: 5 slots, multiple tiers each. Tier 0 = stock (no install).
+// Parts catalog — prices per slot/tier. Pricing rationale:
+// - Slots are differentiated by impact: turbo > engine > transmission > tires > weight
+//   so the most game-changing mods cost the most at every tier.
+// - Each tier ramps ~5–7x from the previous (geometric curve), so progression
+//   is smooth: T1 is reachable with a few class wins, each step up feels
+//   meaningful but never out-of-reach when you're racing in the right class.
+// - Total T1 set ≈ 610g — affordable within ~6–7 E-class wins (100g/win)
+//   so the player can roughly keep pace with the AI's mod scaling.
 const parts = {
   engine: [
     { tier: 0, name: 'Stock',         price: 0,     torquePeakMul: 1.00, redlineDelta: 0 },
-    { tier: 1, name: 'Street Tune',   price: 100,   torquePeakMul: 1.05, redlineDelta: 100 },
-    { tier: 2, name: 'Performance',   price: 5800,  torquePeakMul: 1.12, redlineDelta: 300 },
-    { tier: 3, name: 'Built Block',   price: 18000, torquePeakMul: 1.22, redlineDelta: 600 },
-    { tier: 4, name: 'Race Internals', price: 48000, torquePeakMul: 1.35, redlineDelta: 1000 },
+    { tier: 1, name: 'Street Tune',   price: 150,   torquePeakMul: 1.05, redlineDelta: 100 },
+    { tier: 2, name: 'Performance',   price: 1200,  torquePeakMul: 1.12, redlineDelta: 300 },
+    { tier: 3, name: 'Built Block',   price: 5500,  torquePeakMul: 1.22, redlineDelta: 600 },
+    { tier: 4, name: 'Race Internals', price: 20000, torquePeakMul: 1.35, redlineDelta: 1000 },
   ],
   turbo: [
     { tier: 0, name: 'None',           price: 0,     torquePeakMul: 1.00, torqueWidthMul: 1.00, redlineDelta: 0 },
-    { tier: 1, name: 'Bolt-on Turbo',  price: 100,   torquePeakMul: 1.10, torqueWidthMul: 1.05, redlineDelta: 0 },
-    { tier: 2, name: 'Big Single',     price: 14000, torquePeakMul: 1.20, torqueWidthMul: 1.08, redlineDelta: 100 },
-    { tier: 3, name: 'Twin Turbo',     price: 32000, torquePeakMul: 1.32, torqueWidthMul: 1.10, redlineDelta: 200 },
-    { tier: 4, name: 'Quad Compound',  price: 80000, torquePeakMul: 1.50, torqueWidthMul: 1.15, redlineDelta: 300 },
+    { tier: 1, name: 'Bolt-on Turbo',  price: 200,   torquePeakMul: 1.10, torqueWidthMul: 1.05, redlineDelta: 0 },
+    { tier: 2, name: 'Big Single',     price: 1800,  torquePeakMul: 1.20, torqueWidthMul: 1.08, redlineDelta: 100 },
+    { tier: 3, name: 'Twin Turbo',     price: 8500,  torquePeakMul: 1.32, torqueWidthMul: 1.10, redlineDelta: 200 },
+    { tier: 4, name: 'Quad Compound',  price: 32000, torquePeakMul: 1.50, torqueWidthMul: 1.15, redlineDelta: 300 },
   ],
   transmission: [
     { tier: 0, name: 'Stock',         price: 0,     engineResponseDelta: 0,   tunable: false },
-    { tier: 1, name: 'Short Shift',   price: 100,   engineResponseDelta: 0.3, tunable: false },
-    { tier: 2, name: 'Sequential',    price: 4200,  engineResponseDelta: 0.7, tunable: false },
-    { tier: 3, name: 'Custom Ratios', price: 12000, engineResponseDelta: 1.0, tunable: true  },
-    { tier: 4, name: 'Race Spec',     price: 30000, engineResponseDelta: 1.5, tunable: true  },
+    { tier: 1, name: 'Short Shift',   price: 120,   engineResponseDelta: 0.3, tunable: false },
+    { tier: 2, name: 'Sequential',    price: 800,   engineResponseDelta: 0.7, tunable: false },
+    { tier: 3, name: 'Custom Ratios', price: 3500,  engineResponseDelta: 1.0, tunable: true  },
+    { tier: 4, name: 'Race Spec',     price: 14000, engineResponseDelta: 1.5, tunable: true  },
   ],
   tires: [
     { tier: 0, name: 'OEM',          price: 0,     gripDelta: 0.00 },
-    { tier: 1, name: 'Performance',  price: 100,   gripDelta: 0.05 },
-    { tier: 2, name: 'Sticky',       price: 2200,  gripDelta: 0.12 },
-    { tier: 3, name: 'Drag Radials', price: 7000,  gripDelta: 0.22 },
-    { tier: 4, name: 'Slicks',       price: 20000, gripDelta: 0.35 },
+    { tier: 1, name: 'Performance',  price: 80,    gripDelta: 0.05 },
+    { tier: 2, name: 'Sticky',       price: 600,   gripDelta: 0.12 },
+    { tier: 3, name: 'Drag Radials', price: 2800,  gripDelta: 0.22 },
+    { tier: 4, name: 'Slicks',       price: 11000, gripDelta: 0.35 },
   ],
   weight: [
     { tier: 0, name: 'Stock',           price: 0,     massMul: 1.00 },
-    { tier: 1, name: 'Strip Interior',  price: 100,   massMul: 0.95 },
-    { tier: 2, name: 'Lightweight',     price: 6500,  massMul: 0.88 },
-    { tier: 3, name: 'Carbon',          price: 22000, massMul: 0.78 },
+    { tier: 1, name: 'Strip Interior',  price: 60,    massMul: 0.95 },
+    { tier: 2, name: 'Lightweight',     price: 400,   massMul: 0.88 },
+    { tier: 3, name: 'Carbon',          price: 2000,  massMul: 0.78 },
   ],
 };
 
@@ -108,5 +116,14 @@ export function pickOpponentCarId(classIndex, excludeId, seed) {
   const idx = ((seed >>> 0) * 2654435761) >>> 0;
   return candidates[idx % candidates.length].id;
 }
+
+// Plan-3 NBucks shop. cost is in NBucks (platform soft currency).
+export const SHOP_PACKS = [
+  { id: 'small',  cost: 100,  gold: 250 },
+  { id: 'medium', cost: 500,  gold: 1500 },
+  { id: 'large',  cost: 1000, gold: 3500 },
+  { id: 'mega',   cost: 2500, gold: 10000 },
+  { id: 'whale',  cost: 5000, gold: 25000 },
+];
 
 export const balance = { cars, parts, ai, env, defaultTune };

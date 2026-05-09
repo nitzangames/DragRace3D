@@ -1,4 +1,4 @@
-export const VERSION = 'v0.4.19';
+export const VERSION = 'v0.5.44';
 
 export const FIXED_DT = 1 / 120;
 export const MAX_DT = 1 / 30;
@@ -35,3 +35,68 @@ export const QUICK_RACE_REWARD_FRAC = 0.50;  // quick race vs career
 
 // Save key (PlaySDK.save/load)
 export const SAVE_KEY = 'drag-race-3d:career:v1';
+
+// --- Plan 3: Polish & Online ---
+
+// Env presets: ids of the 10 distinct track sceneries (was 4 lighting-only
+// presets; expanded to 10 fully-built environments in scenery.js).
+export const ENV_PRESET_IDS = [
+  'amphitheater', 'bleachers',          // E-class starter tracks
+  'industrial',   'junkyard',           // D-class urban grit
+  'redrock',      'saguaro',            // C-class desert
+  'skyline',      'highway',            // B-class urban
+  'vegas',                               // A-class neon
+  'tokyo',                               // Pro neon
+];
+
+// Class index → default career-race env. Each career race uses the class's
+// signature track unless overridden. Amphitheater is the championship-tier
+// final venue and only appears at Pro.
+export const CLASS_ENV_TABLE = [
+  'bleachers',     // E
+  'industrial',    // D
+  'redrock',       // C
+  'skyline',       // B
+  'vegas',         // A
+  'amphitheater',  // Pro
+];
+
+// Class index at which each env unlocks for quick-race. Bleachers is the
+// only class-0 starter; the rest unlock as the class ladder advances. Both
+// neon tracks (tokyo, vegas) and the championship amphitheater unlock at
+// the top of the ladder.
+export const ENV_UNLOCK_CLASS = {
+  bleachers:    0,
+  industrial:   1,
+  junkyard:     1,
+  redrock:      2,
+  saguaro:      2,
+  skyline:      3,
+  highway:      3,
+  vegas:        4,
+  tokyo:        4,
+  amphitheater: 5,
+};
+
+// Legacy ID map — Plan-3 v0.5.5 used four lighting presets (day/night/salt/
+// rain); load-time migration (save.js) maps any legacy ID to its new
+// equivalent so existing careers don't lose their unlocks.
+export const LEGACY_ENV_MAP = {
+  day:   'amphitheater',
+  night: 'tokyo',
+  salt:  'bleachers',
+  rain:  'vegas',
+};
+
+// Ghost replay
+export const GHOST_SAMPLE_HZ = 30;          // samples/sec
+export const GHOST_DURATION_S = 12;         // max race duration to size buffer
+export const GHOST_FLOATS_PER_SAMPLE = 3;   // [worldZ, rpm, gear]
+
+// Audio
+export const MASTER_VOLUME_DEFAULT = 0.7;   // 0..1
+export const ENGINE_BASE_FREQ_HZ = 60;      // pitch at idleRpm; scaled by rpm/redline at runtime
+
+// Leaderboard
+export const ROTW_BOARD_PREFIX = 'rotw-week-';
+export const WEEK_MS = 7 * 86400 * 1000;

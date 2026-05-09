@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Drag Race 3D — Night Scenery Variants</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  html,body { margin:0; padding:0; height:100%; background:#0a0e14; color:#fff; font-family:system-ui; overflow:hidden; }
+  #root { position:fixed; inset:0; }
+  canvas { display:block; }
+  #panel {
+    position:fixed; top:16px; left:50%; transform:translateX(-50%);
+    background:rgba(8,12,20,0.85); border:1px solid #2a2f3a; border-radius:10px;
+    padding:8px; display:flex; gap:6px; z-index:10;
+  }
+  .mock-btn {
+    background:#1a1d22; color:#fff; border:2px solid #555; border-radius:8px;
+    padding:8px 14px; font:600 13px system-ui; cursor:pointer;
+    letter-spacing:0.04em; touch-action:manipulation;
+  }
+  .mock-btn.active { border-color:#2aa050; background:#1a3520; }
+  .mock-btn:hover:not(.active) { border-color:#888; }
+  #info {
+    position:fixed; bottom:16px; left:50%; transform:translateX(-50%);
+    background:rgba(8,12,20,0.85); border:1px solid #2a2f3a; border-radius:10px;
+    padding:10px 16px; max-width:680px; font-size:14px; line-height:1.4;
+    text-align:center;
+  }
+  #info .label { color:#888; font-size:11px; letter-spacing:0.08em; margin-bottom:4px; }
+  #info .desc { color:#fff; }
+  #back {
+    position:fixed; top:16px; left:16px; z-index:10;
+    background:transparent; border:2px solid #888; color:#fff;
+    border-radius:8px; padding:6px 12px; font:600 14px system-ui; cursor:pointer;
+    text-decoration:none;
+  }
+</style>
+</head>
+<body>
+<a id="back" href="./index.html">‹ THEMES</a>
+<div id="root"></div>
+<div id="panel">
+  <button class="mock-btn active" data-night="tokyo">A · TOKYO NEON</button>
+  <button class="mock-btn" data-night="vegas">B · VEGAS STRIP</button>
+  <button class="mock-btn" data-night="stadium">C · STADIUM LIGHTS</button>
+  <button class="mock-btn" data-night="industrial">D · MIDNIGHT INDUSTRIAL</button>
+</div>
+<div id="info">
+  <div class="label">NIGHT SCENERY VARIANT</div>
+  <div id="info-desc" class="desc"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const T = window.THREE;
+const root = document.getElementById('root');
+const renderer = new T.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+function resize() { renderer.setSize(window.innerWidth, window.innerHeight); }
+resize();
+window.addEventListener('resize', resize);
+root.appendChild(renderer.domElement);
+
+let scene, camera, sceneryGroup;
+const orbitCenter = new T.Vector3(0, 4, -55);
+const orbitRadius = 50;
+const orbitHeight = 16;
+let orbitAngle = 0.6;
+
+function buildBaseScene(preset) {
+  scene = new T.Scene();
+  scene.background = new T.Color(preset.fogColor);
+  scene.fog = new T.Fog(preset.fogColor, preset.fogNear || 50, preset.fogFar || 360);
+
+  scene.add(new T.AmbientLight(preset.ambient, 0.45));
+  scene.add(new T.HemisphereLight(0x1a2240, 0x080808, 0.25));
+  const sun = new T.DirectionalLight(preset.sun, preset.sunIntensity);
+  sun.position.set(...preset.sunPos);
+  scene.add(sun);
+
+  const stripCanvas = document.createElement('canvas');
+  stripCanvas.width = 256; stripCanvas.height = 1024;
+  const sc = stripCanvas.getContext('2d');
+  sc.fillStyle = '#1a1a1e'; sc.fillRect(0, 0, 256, 1024);
+  for (let i = 0; i < 1500; i++) {
+    sc.fillStyle = `rgba(255,255,255,${(Math.random()*0.05).toFixed(3)})`;
+    sc.fillRect(Math.random()*256, Math.random()*1024, 2, 2);
+  }
+  sc.fillStyle = '#a08820'; sc.fillRect(126, 0, 4, 1024);
+  sc.fillStyle = '#aaaaaa'; sc.fillRect(8, 0, 4, 1024); sc.fillRect(244, 0, 4, 1024);
+  const stripTex = new T.CanvasTexture(stripCanvas);
+  stripTex.wrapS = stripTex.wrapT = T.RepeatWrapping;
+  stripTex.repeat.set(1, 60); stripTex.anisotropy = 4;
+  const strip = new T.Mesh(new T.PlaneGeometry(15, 700),
+    new T.MeshLambertMaterial({ map: stripTex }));
+  strip.rotation.x = -Math.PI/2; strip.position.set(0, 0, -300);
+  scene.add(strip);
+
+  const dirt = new T.Mesh(new T.PlaneGeometry(400, 700),
+    new T.MeshLambertMaterial({ color: preset.ground }));
+  dirt.rotation.x = -Math.PI/2; dirt.position.set(0, -0.05, -300);
+  scene.add(dirt);
+
+  // Tree
+  const tree = new T.Group();
+  const post = new T.Mesh(new T.BoxGeometry(0.4, 6, 0.4),
+    new T.MeshLambertMaterial({ color: 0x202020 }));
+  post.position.y = 3; tree.add(post);
+  for (let i = 0; i < 5; i++) for (const sx of [-1, 1]) {
+    const c = i < 3 ? 0xffaa00 : (i === 4 ? 0x22ee48 : 0x551100);
+    const bulb = new T.Mesh(new T.SphereGeometry(0.22, 12, 8),
+      new T.MeshBasicMaterial({ color: c }));
+    bulb.position.set(sx*0.5, 5.5 - i*0.9, 0);
+    tree.add(bulb);
+  }
+  tree.position.set(0, 0, -1.5);
+  scene.add(tree);
+
+  for (const cx of [-2.5, 2.5]) {
+    const car = new T.Group();
+    const body = new T.Mesh(new T.BoxGeometry(1.7, 0.9, 4),
+      new T.MeshLambertMaterial({ color: cx > 0 ? 0xc83a26 : 0x4d6dd6 }));
+    body.position.y = 0.55; car.add(body);
+    const cabin = new T.Mesh(new T.BoxGeometry(1.55, 0.95, 2),
+      new T.MeshLambertMaterial({ color: 0x222222 }));
+    cabin.position.set(0, 1.45, -0.05); car.add(cabin);
+    car.position.set(cx, 0, 2);
+    scene.add(car);
+  }
+
+  sceneryGroup = new T.Group();
+  scene.add(sceneryGroup);
+
+  camera = new T.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 600);
+}
+
+// ===========================================================================
+// VARIANT A: TOKYO NEON — dark buildings with neon edges, vertical neon signs
+// ===========================================================================
+function buildTokyo() {
+  const g = sceneryGroup;
+  const buildingMat = new T.MeshLambertMaterial({ color: 0x141820 });
+  const neonColors = [0xff20a0, 0x40ffff, 0xffff40, 0xff4040, 0x40ff40];
+  const winMat = new T.MeshBasicMaterial({ color: 0xffe080 });
+  const winGeo = new T.BoxGeometry(0.8, 0.6, 0.05);
+
+  for (let s = 0; s < 14; s++) {
+    const sx = (s % 2 === 0 ? -1 : 1) * (24 + (s % 3) * 4);
+    const sz = -15 - s * 24;
+    const w = 14 + (s % 3) * 5;     // long-facade dimension
+    const h = 9 + (s % 4) * 3;
+    const d = 12;                    // short dimension
+
+    // Build in local space (long facade along X, windows on the +Z or -Z
+    // face) then rotate the whole group 90° around Y so the long facade
+    // runs parallel to the strip and the windows + neon edge face the track.
+    const bldg = new T.Group();
+    const b = new T.Mesh(new T.BoxGeometry(w, h, d), buildingMat);
+    b.position.y = h/2; bldg.add(b);
+    const edge = new T.Mesh(new T.BoxGeometry(w + 0.2, 0.2, d + 0.2),
+      new T.MeshBasicMaterial({ color: neonColors[s % 5] }));
+    edge.position.y = h; bldg.add(edge);
+    const winFaceZ = sx > 0 ? -d/2 - 0.05 : d/2 + 0.05;
+    const winRows = Math.floor(h / 2) - 1;
+    const winCols = Math.floor(w / 2.5) - 1;
+    for (let r = 0; r < winRows; r++) {
+      for (let c = 0; c < winCols; c++) {
+        if (Math.random() < 0.55) {
+          const win = new T.Mesh(winGeo, winMat);
+          win.position.set(-w/2 + 1.4 + c * 2.4, 1 + r * 1.8, winFaceZ);
+          bldg.add(win);
+        }
+      }
+    }
+    bldg.position.set(sx, 0, sz);
+    bldg.rotation.y = Math.PI / 2;
+    g.add(bldg);
+  }
+
+  // Vertical neon signs
+  for (let i = 0; i < 4; i++) {
+    const x = (i % 2 === 0 ? -1 : 1) * 36;
+    const z = -50 - i * 70;
+    const sign = new T.Mesh(new T.BoxGeometry(0.3, 14, 2.5),
+      new T.MeshBasicMaterial({ color: neonColors[i] }));
+    sign.position.set(x, 14, z); g.add(sign);
+  }
+
+  // Streetlights with halo glow
+  for (let z = -20; z >= -340; z -= 30) {
+    for (const px of [-19, 19]) {
+      const pole = new T.Mesh(new T.BoxGeometry(0.3, 9, 0.3),
+        new T.MeshLambertMaterial({ color: 0x202020 }));
+      pole.position.set(px, 4.5, z); g.add(pole);
+      const bulb = new T.Mesh(new T.SphereGeometry(0.6, 12, 8),
+        new T.MeshBasicMaterial({ color: 0xffd980 }));
+      bulb.position.set(px, 9.2, z); g.add(bulb);
+      const halo = new T.Mesh(new T.CircleGeometry(2.5, 16),
+        new T.MeshBasicMaterial({ color: 0xffd980, transparent: true, opacity: 0.15 }));
+      halo.position.set(px, 9.2, z);
+      halo.lookAt(px, 0, z + 1);
+      g.add(halo);
+    }
+  }
+
+  // LED-strip tire walls (cyan glow) — long edge along Z so they look
+  // like continuous lighting instead of perpendicular speed-bump bars.
+  const ledWallGeo = new T.BoxGeometry(0.4, 0.6, 2);
+  const ledMat = new T.MeshBasicMaterial({ color: 0x40ffff });
+  for (let z = -10; z >= -340; z -= 2.5) {
+    for (const bx of [-9, 9]) {
+      const led = new T.Mesh(ledWallGeo, ledMat);
+      led.position.set(bx, 0.3, z); g.add(led);
+    }
+  }
+
+  // Distant skyline silhouette
+  const skylineMat = new T.MeshLambertMaterial({ color: 0x080a14 });
+  for (let i = 0; i < 12; i++) {
+    const x = -120 + i * 22;
+    const h = 20 + (i % 5) * 8;
+    const sky = new T.Mesh(new T.BoxGeometry(18, h, 12), skylineMat);
+    sky.position.set(x, h/2, -380); g.add(sky);
+  }
+}
+
+// ===========================================================================
+// VARIANT B: VEGAS STRIP — casino marquees, spotlights, palm trees w/ LEDs
+// ===========================================================================
+function buildVegas() {
+  const g = sceneryGroup;
+  const casinoMat = new T.MeshLambertMaterial({ color: 0x1c1820 });
+  const marqueeColors = [0xffe040, 0xff5040, 0xff20a0, 0x40c0ff, 0xa040ff];
+
+  // Casino blocks — wide and bright with marquees on top
+  for (let s = 0; s < 10; s++) {
+    const sx = (s % 2 === 0 ? -1 : 1) * (28 + (s % 2) * 6);
+    const sz = -25 - s * 32;
+    const w = 22 + (s % 3) * 4;
+    const h = 16 + (s % 4) * 5;
+    const d = 18;
+    // Casino body
+    const c = new T.Mesh(new T.BoxGeometry(w, h, d), casinoMat);
+    c.position.set(sx, h/2, sz); g.add(c);
+    // Bright facade panel (yellow / pink wash on the strip-facing side)
+    const facadeMat = new T.MeshBasicMaterial({ color: marqueeColors[s % 5] });
+    const facade = new T.Mesh(new T.BoxGeometry(0.1, h * 0.85, d * 0.85), facadeMat);
+    facade.position.set(sx + (sx > 0 ? -w/2 - 0.05 : w/2 + 0.05), h/2, sz);
+    g.add(facade);
+    // Marquee sign on top — large rectangle facing the strip
+    const marquee = new T.Mesh(new T.BoxGeometry(0.3, 5, 14),
+      new T.MeshBasicMaterial({ color: marqueeColors[(s + 2) % 5] }));
+    marquee.position.set(sx + (sx > 0 ? -w/2 - 0.4 : w/2 + 0.4), h + 2.5, sz);
+    g.add(marquee);
+    // Marquee "lettering" — bright yellow blocks
+    for (let lz = -5; lz <= 5; lz += 2.5) {
+      const ltr = new T.Mesh(new T.BoxGeometry(0.05, 2, 1.3),
+        new T.MeshBasicMaterial({ color: 0xfff8b0 }));
+      ltr.position.set(sx + (sx > 0 ? -w/2 - 0.6 : w/2 + 0.6), h + 2.5, sz + lz);
+      g.add(ltr);
+    }
+    // Lit window strips along the casino body (horizontal bands)
+    for (let row = 1; row < Math.floor(h / 2.5); row++) {
+      const strip = new T.Mesh(new T.BoxGeometry(0.05, 0.8, d * 0.92),
+        new T.MeshBasicMaterial({ color: 0xfff0a0 }));
+      strip.position.set(sx + (sx > 0 ? -w/2 - 0.05 : w/2 + 0.05), row * 2.5, sz);
+      g.add(strip);
+    }
+  }
+
+  // Vegas-style spotlight beams shooting up to the sky from rooftops
+  const beamMat = new T.MeshBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.18,
+  });
+  for (let i = 0; i < 6; i++) {
+    const x = (i % 2 === 0 ? -1 : 1) * (28 + (i % 2) * 6);
+    const z = -40 - i * 50;
+    const beam = new T.Mesh(new T.CylinderGeometry(0.4, 5, 60, 12, 1, true), beamMat);
+    beam.position.set(x, 32, z);
+    beam.rotation.z = (Math.random() - 0.5) * 0.3;
+    g.add(beam);
+    // Beam source bulb
+    const bulb = new T.Mesh(new T.SphereGeometry(0.6, 10, 8),
+      new T.MeshBasicMaterial({ color: 0xffffff }));
+    bulb.position.set(x, 5, z); g.add(bulb);
+  }
+
+  // Palm trees with LED-lit trunks, lining the strip
+  for (let z = -20; z >= -340; z -= 28) {
+    for (const tx of [-13, 13]) {
+      const trunk = new T.Mesh(new T.CylinderGeometry(0.3, 0.45, 8, 8),
+        new T.MeshLambertMaterial({ color: 0x4a3020 }));
+      trunk.position.set(tx, 4, z); g.add(trunk);
+      // LED rings spiralling up the trunk
+      for (let ry = 0.5; ry <= 7.5; ry += 1.0) {
+        const ring = new T.Mesh(new T.TorusGeometry(0.4, 0.06, 6, 16),
+          new T.MeshBasicMaterial({
+            color: [0xff20a0, 0x40ffff, 0xffff40][Math.floor(ry) % 3],
+          }));
+        ring.position.set(tx, ry, z);
+        ring.rotation.x = Math.PI / 2;
+        g.add(ring);
+      }
+      // Fronds — three.js Y rotation by +ang sends local +X toward (cos ang,
+      // 0, -sin ang), but the position uses (cos ang, sin ang) for the
+      // radial offset. The signs disagree, so fronds at half the positions
+      // were pointing back into the trunk. Negating the rotation aligns
+      // the long axis with the position's radial direction.
+      for (let f = 0; f < 6; f++) {
+        const ang = (f / 6) * Math.PI * 2 + Math.PI / 4;
+        const frond = new T.Mesh(new T.BoxGeometry(2.5, 0.1, 0.4),
+          new T.MeshLambertMaterial({ color: 0x3a8a3a }));
+        frond.position.set(tx + Math.cos(ang) * 1.3, 8.4,
+                           z + Math.sin(ang) * 1.3);
+        frond.rotation.y = -ang;
+        frond.rotation.z = -0.3;
+        g.add(frond);
+      }
+    }
+  }
+
+  // Distant glow horizon — Vegas lights beyond the strip
+  const horizonMat = new T.MeshBasicMaterial({
+    color: 0xffaa40, transparent: true, opacity: 0.4,
+  });
+  const horizon = new T.Mesh(new T.PlaneGeometry(400, 30), horizonMat);
+  horizon.position.set(0, 15, -400); g.add(horizon);
+}
+
+// ===========================================================================
+// VARIANT C: STADIUM LIGHTS — packed stadium with bright floodlights
+// ===========================================================================
+function buildStadium() {
+  const g = sceneryGroup;
+  const standMat = new T.MeshLambertMaterial({ color: 0x4a5260 });
+  const tierMat = new T.MeshLambertMaterial({ color: 0x3a4250 });
+  const crowdMats = [0xff5040, 0x4060ff, 0xffd14a, 0x40c060, 0xeeeeee, 0xc040c0]
+    .map(c => new T.MeshLambertMaterial({ color: c }));
+  const crowdGeo = new T.BoxGeometry(0.55, 0.6, 0.45);
+
+  // Two tiers of grandstands (denser than day version)
+  for (let s = 0; s < 18; s++) {
+    const sx = -16 + (s % 2) * 32;
+    const sz = -20 - s * 14;
+    const lower = new T.Mesh(new T.BoxGeometry(15, 4, 4), standMat);
+    lower.position.set(sx, 2, sz); g.add(lower);
+    const upper = new T.Mesh(new T.BoxGeometry(15, 4, 3.5), tierMat);
+    upper.position.set(sx + (sx > 0 ? 1.5 : -1.5), 5.5, sz); g.add(upper);
+    // Crowd on both tiers
+    for (let cx = -2.5; cx <= 2.5; cx += 1.0) {
+      for (let cz = -1.0; cz <= 1.0; cz += 1.0) {
+        const m = crowdMats[Math.floor(Math.random() * 6)];
+        const c = new T.Mesh(crowdGeo, m);
+        c.position.set(sx + cx, 4.3, sz + cz); g.add(c);
+        const c2 = new T.Mesh(crowdGeo,
+          crowdMats[Math.floor(Math.random()*6)]);
+        c2.position.set(sx + (sx > 0 ? 1.5 : -1.5) + cx, 7.8, sz + cz);
+        g.add(c2);
+      }
+    }
+  }
+
+  // Tall stadium floodlight pylons — tall poles with cluster heads
+  const poleMat = new T.MeshLambertMaterial({ color: 0x404040 });
+  const floodMat = new T.MeshBasicMaterial({ color: 0xfffae0 });
+  const haloMat = new T.MeshBasicMaterial({
+    color: 0xfffae0, transparent: true, opacity: 0.18,
+  });
+  for (let z = -30; z >= -260; z -= 50) {
+    for (const px of [-30, 30]) {
+      const pole = new T.Mesh(new T.BoxGeometry(0.8, 24, 0.8), poleMat);
+      pole.position.set(px, 12, z); g.add(pole);
+      // Cluster of lights at the top (4×3 grid pointing toward the strip)
+      for (let lx = -1; lx <= 1; lx += 1) {
+        for (let ly = 0; ly <= 1; ly += 1) {
+          const flood = new T.Mesh(new T.BoxGeometry(0.4, 0.4, 0.4), floodMat);
+          flood.position.set(px + lx * 0.8, 23 + ly, z + (px > 0 ? -0.8 : 0.8));
+          g.add(flood);
+        }
+      }
+      // Halo glow
+      const halo = new T.Mesh(new T.SphereGeometry(3, 12, 8), haloMat);
+      halo.position.set(px, 23.5, z); g.add(halo);
+    }
+  }
+
+  // Light beams falling onto the strip from the floodlights
+  const beamMat = new T.MeshBasicMaterial({
+    color: 0xfffae0, transparent: true, opacity: 0.05,
+  });
+  for (let z = -30; z >= -260; z -= 50) {
+    for (const px of [-30, 30]) {
+      const beam = new T.Mesh(new T.CylinderGeometry(0.5, 8, 24, 12, 1, true),
+        beamMat);
+      beam.position.set(px * 0.6, 12, z);
+      beam.rotation.z = px > 0 ? -0.5 : 0.5;
+      g.add(beam);
+    }
+  }
+
+  // Stars in the dark sky (small white dots in a far backdrop plane)
+  const starMat = new T.MeshBasicMaterial({ color: 0xffffff });
+  const starGeo = new T.SphereGeometry(0.18, 6, 5);
+  for (let i = 0; i < 80; i++) {
+    const sx = (Math.random() - 0.5) * 360;
+    const sy = 30 + Math.random() * 60;
+    const sz = -380 - Math.random() * 30;
+    const star = new T.Mesh(starGeo, starMat);
+    star.position.set(sx, sy, sz); g.add(star);
+  }
+
+  // Distant scoreboard tower with a glowing screen
+  const tower = new T.Mesh(new T.BoxGeometry(8, 16, 4),
+    new T.MeshLambertMaterial({ color: 0x222932 }));
+  tower.position.set(28, 8, -150); g.add(tower);
+  const screen = new T.Mesh(new T.PlaneGeometry(7, 5),
+    new T.MeshBasicMaterial({ color: 0x60ff60 }));
+  screen.position.set(28 - 2.05, 11, -150); screen.rotation.y = Math.PI/2;
+  g.add(screen);
+}
+
+// ===========================================================================
+// VARIANT D: MIDNIGHT INDUSTRIAL — warehouses with security floods, fire barrels
+// ===========================================================================
+function buildIndustrial() {
+  const g = sceneryGroup;
+  const buildingMat = new T.MeshLambertMaterial({ color: 0x18141a });
+  const roofMat = new T.MeshLambertMaterial({ color: 0x0e0c10 });
+
+  // Warehouses
+  for (let s = 0; s < 14; s++) {
+    const sx = (s % 2 === 0 ? -1 : 1) * (28 + (s % 4) * 6);
+    const sz = -15 - s * 28;
+    const w = 18 + (s % 3) * 6;
+    const h = 8 + (s % 4) * 3;
+    const d = 14;
+    const wh = new T.Mesh(new T.BoxGeometry(w, h, d), buildingMat);
+    wh.position.set(sx, h/2, sz); g.add(wh);
+    const roof = new T.Mesh(new T.BoxGeometry(w, 0.4, d), roofMat);
+    roof.position.set(sx, h + 0.2, sz); g.add(roof);
+    // A few dim red emergency-light rectangles on the side
+    if (s % 2 === 0) {
+      const red = new T.Mesh(new T.BoxGeometry(0.05, 0.6, 0.6),
+        new T.MeshBasicMaterial({ color: 0xff2020 }));
+      red.position.set(sx + (sx > 0 ? -w/2 - 0.025 : w/2 + 0.025),
+                       h - 1.5, sz);
+      g.add(red);
+    }
+  }
+
+  // Tall security floodlights on building corners (warm yellow cones of light)
+  const polMat = new T.MeshLambertMaterial({ color: 0x202020 });
+  const floodMat = new T.MeshBasicMaterial({ color: 0xfff080 });
+  const beamMat = new T.MeshBasicMaterial({
+    color: 0xfff080, transparent: true, opacity: 0.18,
+  });
+  for (let z = -25; z >= -340; z -= 35) {
+    for (const px of [-22, 22]) {
+      const pole = new T.Mesh(new T.BoxGeometry(0.4, 12, 0.4), polMat);
+      pole.position.set(px, 6, z); g.add(pole);
+      const flood = new T.Mesh(new T.BoxGeometry(0.6, 0.5, 1.0), floodMat);
+      flood.position.set(px + (px > 0 ? -0.5 : 0.5), 12, z);
+      flood.rotation.y = px > 0 ? -0.4 : 0.4;
+      g.add(flood);
+      // Cone of light pointing at the strip — apex at the floodlight head
+      // (top of pole), base spreading toward the strip ground. Rotation
+      // sign flipped from prior version so the cone narrows at the source.
+      const beam = new T.Mesh(new T.ConeGeometry(6, 14, 8, 1, true), beamMat);
+      beam.position.set(px * 0.45, 6, z);
+      beam.rotation.z = px > 0 ? -Math.PI/3 : Math.PI/3;
+      g.add(beam);
+    }
+  }
+
+  // Smokestacks lit from below (red pulse) with smoke
+  for (let i = 0; i < 4; i++) {
+    const x = -90 + i * 60;
+    const stack = new T.Mesh(new T.CylinderGeometry(2, 2.5, 28, 12),
+      new T.MeshLambertMaterial({ color: 0x18141a }));
+    stack.position.set(x, 14, -340); g.add(stack);
+    // Red beacon at the top
+    const beacon = new T.Mesh(new T.SphereGeometry(0.6, 10, 8),
+      new T.MeshBasicMaterial({ color: 0xff3030 }));
+    beacon.position.set(x, 28.6, -340); g.add(beacon);
+    const smoke = new T.Mesh(new T.SphereGeometry(4, 8, 6),
+      new T.MeshBasicMaterial({ color: 0x444444, transparent: true, opacity: 0.5 }));
+    smoke.position.set(x + 2, 32, -340); g.add(smoke);
+  }
+
+  // Fire barrels (drum + flickering orange sphere) along the strip edges
+  const drumMat = new T.MeshLambertMaterial({ color: 0x2a1a14 });
+  const fireMat = new T.MeshBasicMaterial({ color: 0xff7020 });
+  for (let z = -30; z >= -330; z -= 60) {
+    for (const bx of [-14, 14]) {
+      const drum = new T.Mesh(new T.CylinderGeometry(0.55, 0.55, 1.2, 12), drumMat);
+      drum.position.set(bx, 0.6, z); g.add(drum);
+      const fire = new T.Mesh(new T.SphereGeometry(0.6, 10, 8), fireMat);
+      fire.position.set(bx, 1.5, z); g.add(fire);
+      // Glow halo
+      const halo = new T.Mesh(new T.SphereGeometry(2, 10, 8),
+        new T.MeshBasicMaterial({ color: 0xff8030, transparent: true, opacity: 0.18 }));
+      halo.position.set(bx, 1.5, z); g.add(halo);
+    }
+  }
+
+  // Chain-link fence segments (silhouette)
+  const fenceMat = new T.MeshLambertMaterial({ color: 0x202020 });
+  for (let z = -10; z >= -360; z -= 4) {
+    for (const fx of [-13, 13]) {
+      const pole = new T.Mesh(new T.BoxGeometry(0.15, 3, 0.15), fenceMat);
+      pole.position.set(fx, 1.5, z); g.add(pole);
+    }
+  }
+}
+
+// ===========================================================================
+// PRESETS
+// ===========================================================================
+const PRESETS = {
+  tokyo: {
+    fogColor: 0x0a0e18, ambient: 0x304060, ground: 0x222832,
+    sun: 0x80a0d0, sunIntensity: 0.65, sunPos: [60, 90, 40],
+    fogNear: 60, fogFar: 320,
+  },
+  vegas: {
+    fogColor: 0x14101e, ambient: 0x5a3868, ground: 0x2c1d34,
+    sun: 0xc080c0, sunIntensity: 0.75, sunPos: [40, 70, 30],
+    fogNear: 70, fogFar: 380,
+  },
+  stadium: {
+    fogColor: 0x06080e, ambient: 0x1a2230, ground: 0x10141a,
+    sun: 0xa0a0a8, sunIntensity: 0.3, sunPos: [0, 90, 0],
+    fogNear: 80, fogFar: 360,
+  },
+  industrial: {
+    fogColor: 0x0a0a0e, ambient: 0x141416, ground: 0x14110e,
+    sun: 0x5a6470, sunIntensity: 0.25, sunPos: [60, 90, 40],
+    fogNear: 50, fogFar: 320,
+  },
+};
+
+const DESCRIPTIONS = {
+  tokyo:
+    'A · Tokyo Neon: dark buildings with bright neon edge strips, vertical neon signs, halo streetlights, cyan LED tire walls, distant skyline silhouette.',
+  vegas:
+    'B · Vegas Strip: bright casino marquees with mock-lettering, spotlight beams shooting up to the sky, lit window bands, palm trees with LED rings spiralling up the trunks, warm horizon glow.',
+  stadium:
+    'C · Stadium Lights: dense double-tier grandstands, packed crowd, towering pylon floodlights with cluster heads + halo glow + light beams hitting the strip, stars in the dark sky, lit scoreboard tower.',
+  industrial:
+    'D · Midnight Industrial: dark warehouses with red emergency lights, security floodlights casting warm cones at the strip, smokestacks with red beacons + smoke, fire barrels glowing along the strip edges, fence-post silhouettes.',
+};
+
+function setNight(name) {
+  buildBaseScene(PRESETS[name]);
+  if      (name === 'tokyo')      buildTokyo();
+  else if (name === 'vegas')      buildVegas();
+  else if (name === 'stadium')    buildStadium();
+  else if (name === 'industrial') buildIndustrial();
+  document.getElementById('info-desc').textContent = DESCRIPTIONS[name];
+  document.querySelectorAll('.mock-btn').forEach((b) => {
+    b.classList.toggle('active', b.dataset.night === name);
+  });
+}
+
+document.querySelectorAll('.mock-btn').forEach((b) => {
+  b.addEventListener('click', () => setNight(b.dataset.night));
+});
+
+setNight('tokyo');
+
+function tick() {
+  orbitAngle += 0.0035;
+  camera.position.set(
+    orbitCenter.x + Math.sin(orbitAngle) * orbitRadius,
+    orbitCenter.y + orbitHeight,
+    orbitCenter.z + Math.cos(orbitAngle) * orbitRadius
+  );
+  camera.lookAt(orbitCenter);
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+tick();
+</script>
+</body>
+</html>

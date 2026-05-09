@@ -12,19 +12,36 @@
   <div id="game-container">
     <canvas id="game-canvas" width="1080" height="1920"></canvas>
     <div id="ui">
+      <div id="top-bar" class="top-bar hidden">
+        <div id="top-bar-left">
+          <button id="top-bar-back" class="top-bar-btn hidden" aria-label="Back">‹</button>
+        </div>
+        <div id="top-bar-title">MENU</div>
+        <div id="top-bar-right">
+          <div id="top-bar-gold">0g</div>
+          <button id="top-bar-pause" class="top-bar-btn" aria-label="Pause">⏸</button>
+        </div>
+      </div>
       <div id="screen-title" class="screen">
         <h1 class="game-title">DRAG RACE 3D</h1>
-        <button id="btn-continue-career" class="btn-primary hidden">CONTINUE CAREER</button>
-        <button id="btn-new-career" class="btn-primary">NEW CAREER</button>
+        <button id="btn-continue-career" class="btn-primary btn-buy hidden">CONTINUE CAREER</button>
+        <button id="btn-new-career" class="btn-primary btn-buy hidden">NEW CAREER</button>
         <button id="btn-quick-race" class="btn-secondary">QUICK RACE</button>
-        <button id="btn-garage" class="btn-secondary">GARAGE</button>
+        <button class="btn-secondary" id="btn-rotw">RACE OF THE WEEK</button>
+        <button class="btn-secondary" id="btn-shop">SHOP</button>
+        <button class="btn-secondary" id="btn-settings">SETTINGS</button>
         <div class="version" id="version-text"></div>
       </div>
       <div id="screen-firstcar" class="screen hidden">
         <h2>PICK YOUR FIRST CAR</h2>
         <p class="subtitle">Class E starter — your career begins here.</p>
-        <div id="firstcar-grid" class="car-grid"></div>
-        <button id="btn-firstcar-back" class="btn-secondary">BACK</button>
+        <div class="garage-carousel">
+          <button id="firstcar-prev" class="garage-arrow" aria-label="Previous">‹</button>
+          <div id="firstcar-preview" class="garage-preview"></div>
+          <button id="firstcar-next" class="garage-arrow" aria-label="Next">›</button>
+        </div>
+        <div id="firstcar-info" class="garage-info"></div>
+        <button id="btn-firstcar-buy" class="btn-primary btn-buy">BUY</button>
       </div>
       <div id="screen-career-home" class="screen hidden">
         <h2 id="career-class-text">CLASS E</h2>
@@ -33,32 +50,71 @@
           <div class="career-row"><span>Gold</span><strong id="career-gold" class="gold">0g</strong></div>
           <div class="career-row"><span>Current car</span><strong id="career-currentcar">—</strong></div>
         </div>
-        <button id="btn-next-race" class="btn-primary">NEXT RACE</button>
+        <button id="btn-next-race" class="btn-primary btn-buy">NEXT RACE</button>
+        <button id="btn-career-quick-race" class="btn-secondary">QUICK RACE</button>
         <button id="btn-career-garage" class="btn-secondary">GARAGE</button>
-        <button id="btn-career-back" class="btn-secondary">MAIN MENU</button>
       </div>
       <div id="screen-garage" class="screen hidden">
-        <h2>GARAGE</h2>
-        <div class="career-row" style="margin-bottom:14px;"><span>Gold</span><strong id="garage-gold" class="gold">0g</strong></div>
-        <div id="garage-list" class="car-grid"></div>
+        <div class="garage-carousel">
+          <button id="garage-prev" class="garage-arrow" aria-label="Previous">‹</button>
+          <div id="garage-preview" class="garage-preview"></div>
+          <button id="garage-next" class="garage-arrow" aria-label="Next">›</button>
+        </div>
+        <div id="garage-car-info" class="garage-info"></div>
+        <button id="btn-garage-customize" class="btn-secondary">CUSTOMIZE</button>
         <button id="btn-garage-buy" class="btn-secondary">BUY NEW CAR</button>
-        <button id="btn-garage-back" class="btn-secondary">BACK</button>
+        <button id="btn-garage-next-race" class="btn-primary btn-buy">NEXT RACE</button>
+      </div>
+      <div id="rotw" class="screen hidden">
+        <h2 class="game-title">RACE OF THE WEEK</h2>
+        <div id="rotw-info" class="rotw-info"></div>
+        <div id="rotw-leaderboard" class="rotw-board"></div>
+        <button class="btn-primary" id="rotw-race">RACE</button>
+      </div>
+      <div id="shop" class="screen hidden">
+        <div id="shop-balance" class="shop-balance"></div>
+        <div id="shop-packs" class="shop-packs"></div>
+        <div class="shop-foot">Get more NBucks at play.nitzan.games</div>
+      </div>
+      <div id="settings" class="screen hidden">
+        <h2 class="game-title">SETTINGS</h2>
+        <div class="settings-row">
+          <label><input type="checkbox" id="opt-sfx" checked> Sound effects</label>
+        </div>
+        <div class="settings-row">
+          <label>Volume <input type="range" id="opt-volume" min="0" max="100" value="70"></label>
+        </div>
+        <div class="settings-row">
+          <label><input type="checkbox" id="opt-haptics" checked> Haptics</label>
+        </div>
+        <div class="settings-row">
+          <label><input type="checkbox" id="opt-shadows" checked> Shadows</label>
+        </div>
+        <button class="btn-secondary btn-danger" id="btn-reset-career">RESET CAREER PROGRESS</button>
+      </div>
+      <div id="quick-race-track" class="screen hidden">
+        <h2 class="game-title">PICK TRACK</h2>
+        <div id="quick-track-grid" class="track-grid"></div>
       </div>
       <div id="screen-quickrace" class="screen hidden">
         <h2>QUICK RACE</h2>
         <p class="subtitle">Pick a class, then a car (uses stock parts/tune for both sides).</p>
         <div class="tabs" id="quickrace-class-tabs"></div>
         <div id="quickrace-grid" class="car-grid"></div>
-        <button id="btn-quickrace-back" class="btn-secondary">BACK</button>
       </div>
       <div id="screen-buyshop" class="screen hidden">
         <h2>BUY NEW CAR</h2>
-        <div class="career-row" style="margin-bottom:14px;"><span>Gold</span><strong id="buyshop-gold" class="gold">0g</strong></div>
         <div class="tabs" id="buyshop-class-tabs"></div>
-        <div id="buyshop-grid" class="car-grid"></div>
-        <button id="btn-buyshop-back" class="btn-secondary">BACK</button>
+        <div class="garage-carousel">
+          <button id="buyshop-prev" class="garage-arrow" aria-label="Previous">‹</button>
+          <div id="buyshop-preview" class="garage-preview"></div>
+          <button id="buyshop-next" class="garage-arrow" aria-label="Next">›</button>
+        </div>
+        <div id="buyshop-car-info" class="garage-info"></div>
+        <button id="btn-buyshop-buy" class="btn-primary">BUY</button>
       </div>
       <div id="screen-cardetail" class="screen hidden">
+        <div id="cardetail-preview" class="cardetail-preview"></div>
         <h2 id="cardetail-name">Car Name</h2>
         <p class="subtitle" id="cardetail-class">CLASS</p>
         <div class="tabs">
@@ -69,7 +125,24 @@
         </div>
         <div id="cardetail-tabbody"></div>
         <button id="btn-cardetail-set-current" class="btn-secondary">SET AS CURRENT</button>
-        <button id="btn-cardetail-back" class="btn-secondary">BACK</button>
+      </div>
+      <div id="screen-prerace" class="screen hidden">
+        <div id="prerace-preview" class="prerace-preview"></div>
+        <div class="prerace-grid">
+          <div class="prerace-card">
+            <div class="prerace-card-label">OPPONENT</div>
+            <div id="prerace-opponent" class="prerace-card-body"></div>
+          </div>
+          <div class="prerace-card">
+            <div class="prerace-card-label">PRIZE</div>
+            <div id="prerace-prize" class="prerace-card-body"></div>
+          </div>
+          <div class="prerace-card">
+            <div class="prerace-card-label">TRACK</div>
+            <div id="prerace-track" class="prerace-card-body"></div>
+          </div>
+        </div>
+        <button id="btn-prerace-race" class="btn-primary btn-buy">RACE</button>
       </div>
       <div id="hud" class="screen hidden hud-overlay">
         <div id="hud-time" class="hud-chip top-left">0.00s</div>

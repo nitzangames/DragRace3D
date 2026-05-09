@@ -1,5 +1,6 @@
 import { balance } from './balance.js';
-import { CLASS_NAMES, NUM_CLASSES } from './constants.js';
+import { CLASS_NAMES, NUM_CLASSES, ENV_PRESET_IDS, ENV_UNLOCK_CLASS } from './constants.js';
+import { pickRandomPaint } from './paint-ui.js';
 
 export function renderQuickRace(onPick) {
   const tabBar = document.getElementById('quickrace-class-tabs');
@@ -39,6 +40,35 @@ export function buildQuickRaceBalance(playerCarId, seed) {
   // a different same-class opponent meant the player on the cheapest car
   // raced one of the more expensive (objectively faster) siblings, which
   // felt unfair.
-  const opponent = player;
+  const opponent = { ...player };
+  const oppPaint = pickRandomPaint(seed, player.color1);
+  opponent.color1 = oppPaint.primary;
+  opponent.color2 = oppPaint.secondary;
   return { ...balance, cars: [player, opponent] };
+}
+
+/**
+ * Render the track-picker grid. Calls onPick(envId) when player picks an
+ * unlocked track. Disabled tiles for locked tracks (informative).
+ */
+export function renderTrackPicker(careerState, onPick) {
+  const grid = document.getElementById('quick-track-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (const envId of ENV_PRESET_IDS) {
+    const unlocked = careerState && careerState.unlockedEnvs.includes(envId);
+    const tile = document.createElement('button');
+    tile.className = 'track-tile ' + (unlocked ? 'unlocked' : 'locked');
+    tile.disabled = !unlocked;
+    const unlockClass = ENV_UNLOCK_CLASS[envId];
+    const unlockNote = unlocked
+      ? '✓ unlocked'
+      : `unlock at class ${['E','D','C','B','A','Pro'][unlockClass]}`;
+    tile.innerHTML = `
+      <h3>${envId.toUpperCase()}</h3>
+      <div class="meta">${unlockNote}</div>
+    `;
+    if (unlocked) tile.addEventListener('click', () => onPick(envId));
+    grid.appendChild(tile);
+  }
 }

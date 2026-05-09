@@ -7,22 +7,45 @@ import { buildRaceScene, renderFrame } from './renderer3d.js';
 import { createChaseCamera, updateChaseCamera } from './camera3d.js';
 import { buildTachSVG } from './tach.js';
 import { resetEffects, updateEffects } from './effects.js';
-import { loadCareer, saveCareer } from './save.js';
-import { newCareer, addOwnedCar, removeOwnedCar, spendGold, recordWin, recordLoss, setCurrentCar } from './career.js';
-import { renderFirstCarGrid, buildOwnedCarInstance, renderCareerHome, buildRaceBalance } from './career-flow.js';
+import { loadCareer, saveCareer, clearCareer } from './save.js';
+import { initAudio, setMuted, setVolume, suspendAudio, resumeAudio, startEngine, stopEngine, updateEngine } from './audio.js';
+import { setHapticsEnabled } from './haptics.js';
+import { newCareer, addOwnedCar, removeOwnedCar, spendGold, addGold, recordWin, recordLoss, setCurrentCar } from './career.js';
+import { renderFirstCarPicker, resetFirstCarPicker, buildOwnedCarInstance, renderCareerHome, buildRaceBalance, buildCareerQuickRaceBalance, pickEnvForCareerRace } from './career-flow.js';
+import { applyEnvPreset } from './env-builder.js';
 import { renderGarage, renderCarDetail } from './garage.js';
 import { renderPartsShop } from './parts-shop.js';
 import { renderBuyShop } from './buy-shop.js';
 import { renderTuningUI } from './tuning-ui.js';
 import { renderPaintUI } from './paint-ui.js';
+import { cleanupPaintPreview, mountPaintPreview } from './paint-preview.js';
+import { mountPreracePreview, cleanupPreracePreview } from './prerace-preview.js';
+import { CLASS_BASE_REWARD, PERFECT_RT_BONUS_FRAC, LOSE_REWARD_FRAC, CLASS_NAMES } from './constants.js';
 import { computeRaceReward } from './economy.js';
-import { renderQuickRace, buildQuickRaceBalance } from './quick-race.js';
+import { renderQuickRace, buildQuickRaceBalance, renderTrackPicker } from './quick-race.js';
+import { createGhostRecorder, decodeGhost } from './ghost-recorder.js';
+import { createGhostPlayer } from './ghost-renderer.js';
+import { renderRotwScreen, buildRotwBalance, fetchCurrentGhost, submitRotwResult } from './rotw-screen.js';
+import { fetchTop } from './leaderboard.js';
+import { renderShop, applyPurchase } from './shop-screen.js';
+import { SHOP_PACKS } from './balance.js';
 
 const canvas = document.getElementById('game-canvas');
 const T = window.THREE;
 const renderer = new T.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(canvas.width, canvas.height, false);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = T.PCFSoftShadowMap;
+
+/** Enable/disable real-time shadows. Materials need to be flagged dirty
+ *  on toggle so three.js recompiles their shaders without shadow uniforms. */
+function setShadowsEnabled(on) {
+  renderer.shadowMap.enabled = !!on;
+  if (scene) {
+    scene.traverse((c) => { if (c.material) c.material.needsUpdate = true; });
+  }
+}
 
 const camera = createChaseCamera(canvas);
 
@@ -31,13 +54,104 @@ let scene, cars, env, tachUpdater;
 let acc = 0; let lastT = performance.now();
 let started = false;
 
+const ghostRecorder = createGhostRecorder();
+let ghostPlayer = null;
+let activeGhostFloats = null; // set by RotW screen before startRace
+
 // Debug handle (used by tests-visual probes; harmless in prod)
 if (typeof window !== 'undefined') window.__dr3d_gd = gameData;
+
+// Title shown in the global top bar per screen. null = hide top bar.
+const TOP_BAR_TITLES = {
+  'screen-title': null,
+  'hud': 'RACE',
+  'screen-results': 'RESULTS',
+  'screen-firstcar': 'PICK YOUR FIRST CAR',
+  'screen-career-home': 'CAREER',
+  'screen-garage': 'GARAGE',
+  'screen-cardetail': 'CAR DETAIL',
+  'screen-buyshop': 'BUY CAR',
+  'screen-prerace': 'PRE-RACE',
+  'screen-quickrace': 'PICK CAR',
+  'quick-race-track': 'PICK TRACK',
+  'rotw': 'RACE OF THE WEEK',
+  'shop': 'GOLD SHOP',
+  'settings': 'SETTINGS',
+};
+
+let _prevScreenForPause = null;
+
+// Per-screen back-button handler. The top-bar BACK arrow on the left runs
+// the matching function for whichever screen is currently visible. null
+// (or absent) hides the back button. The hud and screen-results don't get
+// a back button — they have their own race-specific exit flows.
+const SCREEN_BACK = {
+  'screen-firstcar':    () => { cleanupPaintPreview(); show('screen-title'); },
+  'screen-career-home': () => show('screen-title'),
+  'screen-garage':      () => {
+    cleanupPaintPreview();
+    if (careerState && careerState.ownedCars.length > 0) showCareerHome();
+    else show('screen-title');
+  },
+  'screen-cardetail': () => {
+    cleanupPaintPreview();
+    renderGarage(careerState, onGarageCarPick);
+    show('screen-garage');
+  },
+  'screen-buyshop': () => {
+    cleanupPaintPreview();
+    renderGarage(careerState, onGarageCarPick);
+    show('screen-garage');
+  },
+  'screen-prerace': () => { cleanupPreracePreview(); showCareerHome(); },
+  'screen-quickrace':  () => show('quick-race-track'),
+  'quick-race-track':  () => show('screen-title'),
+  'rotw':              () => show('screen-title'),
+  'shop':              () => show('screen-title'),
+  'settings': () => {
+    if (_prevScreenForPause) {
+      const prev = _prevScreenForPause; _prevScreenForPause = null;
+      show(prev);
+    } else {
+      show('screen-title');
+    }
+  },
+};
+
+function updateTopBar(id) {
+  const bar = document.getElementById('top-bar');
+  if (!bar) return;
+  const title = TOP_BAR_TITLES[id];
+  if (!title) { bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+  document.getElementById('top-bar-title').textContent = title;
+  const gold = (careerState && typeof careerState.gold === 'number') ? careerState.gold : 0;
+  document.getElementById('top-bar-gold').textContent = gold.toLocaleString() + 'g';
+
+  const backBtn = document.getElementById('top-bar-back');
+  const backFn = SCREEN_BACK[id];
+  if (backFn) {
+    backBtn.classList.remove('hidden');
+    backBtn.onclick = backFn;
+  } else {
+    backBtn.classList.add('hidden');
+    backBtn.onclick = null;
+  }
+}
 
 function show(id) {
   document.querySelectorAll('#ui .screen').forEach(s => s.classList.add('hidden'));
   const el = document.getElementById(id);
   if (el) el.classList.remove('hidden');
+  updateTopBar(id);
+}
+
+/** Re-read careerState.gold into the top bar without changing the screen.
+ *  Call after any in-screen mutation that affects the player's balance
+ *  (parts purchase, paint pick that costs nothing — well, just parts/cars). */
+function refreshTopBar() {
+  const visible = document.querySelector('#ui .screen:not(.hidden)');
+  if (visible) updateTopBar(visible.id);
 }
 
 function startRace() {
@@ -46,14 +160,26 @@ function startRace() {
     while (scene.children.length > 0) scene.remove(scene.children[0]);
     scene = null;
   }
-  const built = buildRaceScene(raceBalance);
+  const envId = quickRaceMode ? quickRaceEnvId : pickEnvForCareerRace(careerState || { classIndex: 0 });
+  const built = buildRaceScene(raceBalance, envId);
   scene = built.scene; cars = built.cars; env = built.env;
+  env.ghostMesh = built.ghostMesh;
   resetRace(gameData, raceBalance, Date.now() | 0);
   resetEffects();
+  _rotwSubmitted = false;
   show('hud');
   started = true;
   const tachContainer = document.getElementById('tach-container');
   tachUpdater = buildTachSVG(tachContainer, raceBalance.cars[0].redlineRpm, GREEN_BAND_RPM);
+  startEngine(raceBalance.cars[0]);
+  ghostRecorder.start();
+  if (activeGhostFloats && env.ghostMesh) {
+    ghostPlayer = createGhostPlayer(env.ghostMesh, activeGhostFloats);
+    env.ghostMesh.visible = true;
+  } else {
+    ghostPlayer = null;
+    if (env.ghostMesh) env.ghostMesh.visible = false;
+  }
 }
 
 document.getElementById('version-text').textContent = VERSION;
@@ -64,39 +190,175 @@ initInput(gameData);
 let careerState = null;
 let raceBalance = balance; // current race's balance — reset by each race entrypoint
 let quickRaceMode = false;
+let quickRaceEnvId = 'day';
+// Distinguishes career-context quick races (grind for gold using the player's
+// tuned career car) from standalone quick races started off the title screen.
+// Both set quickRaceMode = true; the flag below decides whether to award gold
+// at career-quick-race rates and whether RACE AGAIN re-rolls the same flow.
+let _careerQuickRace = false;
 let activeOwnedCar = null;
 let activeTab = 'parts';
+let rotwActive = false;
+let rotwChallenge = null;
+let _rotwSubmitted = false;
+
+// Audio lifecycle
+let _audioInitDone = false;
+async function ensureAudioInit() {
+  if (_audioInitDone) return;
+  _audioInitDone = true;
+  await initAudio();
+  if (careerState && careerState.audio) {
+    setMuted(careerState.audio.muted);
+    setVolume(careerState.audio.volume);
+  }
+  if (careerState && careerState.haptics) {
+    setHapticsEnabled(careerState.haptics.enabled !== false);
+  }
+  if (careerState && careerState.shadows) {
+    setShadowsEnabled(careerState.shadows.enabled !== false);
+  }
+}
+window.addEventListener('pointerdown', ensureAudioInit, { once: true });
+window.addEventListener('keydown', ensureAudioInit, { once: true });
+
+// Top-bar pause button → settings (remembers prev screen)
+document.getElementById('top-bar-pause').addEventListener('click', () => {
+  const visible = document.querySelector('#ui .screen:not(.hidden)');
+  if (visible && visible.id !== 'settings') _prevScreenForPause = visible.id;
+  show('settings');
+  const muted = !!(careerState && careerState.audio && careerState.audio.muted);
+  document.getElementById('opt-sfx').checked = !muted;
+  document.getElementById('opt-volume').value = Math.round((careerState && careerState.audio ? careerState.audio.volume : 0.7) * 100);
+  const hapticsOn = !(careerState && careerState.haptics && careerState.haptics.enabled === false);
+  document.getElementById('opt-haptics').checked = hapticsOn;
+});
+
+// PlaySDK pause/resume hooks
+if (typeof window !== 'undefined' && window.PlaySDK) {
+  if (window.PlaySDK.onPause) window.PlaySDK.onPause(() => { suspendAudio(); stopEngine(); });
+  if (window.PlaySDK.onResume) window.PlaySDK.onResume(() => { resumeAudio(); });
+}
 
 async function initTitleButtons() {
   const continueBtn = document.getElementById('btn-continue-career');
   const newBtn      = document.getElementById('btn-new-career');
   const quickBtn    = document.getElementById('btn-quick-race');
-  const garageBtn   = document.getElementById('btn-garage');
 
-  // Show CONTINUE only if a save exists
+  // Show CONTINUE if a save exists, otherwise NEW. Never both — once the
+  // player has a career, NEW CAREER is hidden because the only way to
+  // start over is the explicit RESET CAREER PROGRESS button in settings.
   const existing = await loadCareer();
   if (existing) {
     careerState = existing;
     continueBtn.classList.remove('hidden');
+  } else {
+    newBtn.classList.remove('hidden');
   }
 
   newBtn.addEventListener('click', e => { e.currentTarget.blur(); onNewCareer(); });
   continueBtn.addEventListener('click', e => { e.currentTarget.blur(); onContinueCareer(); });
   quickBtn.addEventListener('click', e => { e.currentTarget.blur(); onQuickRace(); });
-  garageBtn.addEventListener('click', e => { e.currentTarget.blur(); onGarage(); });
+
+  const rotwBtn = document.getElementById('btn-rotw');
+  if (rotwBtn) {
+    rotwBtn.addEventListener('click', async () => {
+      show('rotw');
+      rotwChallenge = await renderRotwScreen();
+    });
+  }
+  function openShop() {
+    show('shop');
+    renderShop(careerState, async (packId) => {
+      const pack = SHOP_PACKS.find(p => p.id === packId);
+      if (!pack) return;
+      const ok = window.confirm(`Buy ${pack.gold.toLocaleString()}g for ${pack.cost.toLocaleString()} NBucks?`);
+      if (!ok) return;
+      careerState = applyPurchase(careerState, pack);
+      await saveCareer(careerState);
+      refreshTopBar();
+      openShop(); // re-render with updated balance
+    });
+  }
+  const shopBtn = document.getElementById('btn-shop');
+  if (shopBtn) shopBtn.addEventListener('click', openShop);
+
+  function openSettings() {
+    show('settings');
+    const muted = !!(careerState && careerState.audio && careerState.audio.muted);
+    document.getElementById('opt-sfx').checked = !muted;
+    document.getElementById('opt-volume').value = Math.round((careerState && careerState.audio ? careerState.audio.volume : 0.7) * 100);
+    const hapticsOn = !(careerState && careerState.haptics && careerState.haptics.enabled === false);
+    document.getElementById('opt-haptics').checked = hapticsOn;
+    const shadowsOn = !(careerState && careerState.shadows && careerState.shadows.enabled === false);
+    document.getElementById('opt-shadows').checked = shadowsOn;
+  }
+  const settingsBtn = document.getElementById('btn-settings');
+  if (settingsBtn) settingsBtn.addEventListener('click', openSettings);
+  document.getElementById('opt-sfx').addEventListener('change', async (e) => {
+    if (!careerState) return;
+    const muted = !e.target.checked;
+    careerState = { ...careerState, audio: { ...careerState.audio, muted } };
+    setMuted(muted);
+    await saveCareer(careerState);
+  });
+  document.getElementById('opt-haptics').addEventListener('change', async (e) => {
+    const enabled = !!e.target.checked;
+    setHapticsEnabled(enabled);
+    if (!careerState) return;
+    careerState = { ...careerState, haptics: { enabled } };
+    await saveCareer(careerState);
+  });
+  document.getElementById('opt-shadows').addEventListener('change', async (e) => {
+    const enabled = !!e.target.checked;
+    setShadowsEnabled(enabled);
+    if (!careerState) return;
+    careerState = { ...careerState, shadows: { enabled } };
+    await saveCareer(careerState);
+  });
+
+  // Reset career — wipes the save, hides CONTINUE, returns to title.
+  document.getElementById('btn-reset-career').addEventListener('click', async () => {
+    const ok = window.confirm('Reset career progress? This will delete your owned cars, gold, NBucks, and class progress. Settings (sound/haptics) will be lost too.');
+    if (!ok) return;
+    await clearCareer();
+    careerState = null;
+    _prevScreenForPause = null;
+    document.getElementById('btn-continue-career').classList.add('hidden');
+    document.getElementById('btn-new-career').classList.remove('hidden');
+    show('screen-title');
+  });
+  document.getElementById('opt-volume').addEventListener('input', async (e) => {
+    if (!careerState) return;
+    const v = (+e.target.value) / 100;
+    careerState = { ...careerState, audio: { ...careerState.audio, volume: v } };
+    setVolume(v);
+  });
+  document.getElementById('opt-volume').addEventListener('change', async () => {
+    if (careerState) await saveCareer(careerState);
+  });
+
+  document.getElementById('rotw-race').addEventListener('click', async () => {
+    if (!rotwChallenge) rotwChallenge = await renderRotwScreen();
+    raceBalance = buildRotwBalance(rotwChallenge);
+    activeGhostFloats = await fetchCurrentGhost(rotwChallenge.week);
+    rotwActive = true;
+    quickRaceMode = false;
+    startRace();
+    // Force amphitheater env for RotW so all players race the same scene
+    applyEnvPreset(env, 'amphitheater');
+  });
 }
 
 function onNewCareer() {
   careerState = newCareer();
-  renderFirstCarGrid(
-    document.getElementById('firstcar-grid'),
-    careerState,
-    onFirstCarPicked
-  );
+  resetFirstCarPicker();
+  renderFirstCarPicker(careerState, onFirstCarPicked);
   show('screen-firstcar');
 }
 
 async function onFirstCarPicked(carId) {
+  cleanupPaintPreview();
   const car = balance.cars.find(c => c.id === carId);
   careerState = spendGold(careerState, car.price);
   const carInstance = buildOwnedCarInstance(carId);
@@ -112,20 +374,36 @@ function showCareerHome() {
   show('screen-career-home');
 }
 
-document.getElementById('btn-firstcar-back').addEventListener('click', () => show('screen-title'));
-
 function onContinueCareer() { showCareerHome(); }
 function onQuickRace() {
-  renderQuickRace(onQuickRacePick);
-  show('screen-quickrace');
-}
-function onQuickRacePick(carId) {
-  raceBalance = buildQuickRaceBalance(carId, Date.now() | 0);
-  quickRaceMode = true;
-  startRace();
+  show('quick-race-track');
+  renderTrackPicker(careerState, (envId) => {
+    quickRaceEnvId = envId;
+    renderQuickRace((carId) => {
+      raceBalance = buildQuickRaceBalance(carId, Date.now() | 0);
+      quickRaceMode = true;
+      _careerQuickRace = false;
+      startRace();
+    });
+    show('screen-quickrace');
+  });
 }
 
-document.getElementById('btn-quickrace-back').addEventListener('click', () => show('screen-title'));
+/** Quick race from inside career — uses the player's customized career car
+ *  against an identical AI car (different colors). Awards gold at the
+ *  quick-race rate (50% of class base) but doesn't advance the class. */
+function onCareerQuickRace() {
+  if (!careerState || !careerState.currentCarId) return;
+  show('quick-race-track');
+  renderTrackPicker(careerState, (envId) => {
+    quickRaceEnvId = envId;
+    quickRaceMode = true;
+    _careerQuickRace = true;
+    raceBalance = buildCareerQuickRaceBalance(careerState, Date.now() | 0);
+    startRace();
+  });
+}
+
 function onGarage() {
   if (!careerState) {
     careerState = newCareer();  // allow garage browsing without a save (no persistence yet)
@@ -135,6 +413,7 @@ function onGarage() {
 }
 
 function onGarageCarPick(carId) {
+  cleanupPaintPreview();  // tear down the garage carousel preview before swapping screens
   activeOwnedCar = careerState.ownedCars.find(c => c.carId === carId);
   activeTab = 'parts';
   // Reset visual tab state to PARTS
@@ -144,6 +423,17 @@ function onGarageCarPick(carId) {
   renderCarDetail(careerState, activeOwnedCar);
   renderActiveTab();
   show('screen-cardetail');
+  // Mount the persistent 3D preview pinned at the top of the cardetail
+  // screen. Stays through tab switches; paint controls update it in place
+  // via updateActivePaintPreview so the rotation angle is preserved.
+  const carDef = balance.cars.find(c => c.id === activeOwnedCar.carId);
+  if (carDef) {
+    mountPaintPreview(
+      document.getElementById('cardetail-preview'),
+      carDef.archetype,
+      activeOwnedCar.paint
+    );
+  }
 }
 
 function onTabChange(tab) {
@@ -156,6 +446,11 @@ function onTabChange(tab) {
 }
 
 function renderActiveTab() {
+  // Do NOT cleanupPaintPreview here. The preview is mounted persistently
+  // at the top of the cardetail screen (in onGarageCarPick) and must
+  // survive tab switches and parts purchases — buying a part triggers
+  // renderActiveTab(), which previously was destroying the preview's
+  // WebGL context.
   const body = document.getElementById('cardetail-tabbody');
   body.innerHTML = '';
   switch (activeTab) {
@@ -170,6 +465,7 @@ async function onInstallPart(slot, tier) {
   const price = balance.parts[slot][tier].price;
   if (careerState.gold < price) return;
   careerState = spendGold(careerState, price);
+  refreshTopBar();
   // Update the owned-car instance's parts
   const idx = careerState.ownedCars.findIndex(c => c.carId === activeOwnedCar.carId);
   const updatedCar = {
@@ -202,8 +498,10 @@ async function onPaintChange(newPaint) {
   careerState = { ...careerState, ownedCars: newOwned };
   activeOwnedCar = updated;
   await saveCareer(careerState);
-  // Re-render so swatches show the new selection
-  renderActiveTab();
+  // Don't re-render the paint UI here — the swatch click handlers update
+  // their own .selected state inline, and paint-ui.js already updates the
+  // 3D preview directly. A full re-render would dispose+remount the
+  // preview and reset its rotation angle on every color tap.
 }
 
 function renderSellUI(parent, ownedCar) {
@@ -237,15 +535,22 @@ async function onSetCurrent() {
 
 initTitleButtons();
 
-document.getElementById('btn-career-back').addEventListener('click', () => show('screen-title'));
 document.getElementById('btn-career-garage').addEventListener('click', () => onGarage());
 document.getElementById('btn-next-race').addEventListener('click', () => onNextRace());
+document.getElementById('btn-career-quick-race').addEventListener('click', () => onCareerQuickRace());
+document.getElementById('btn-prerace-race').addEventListener('click', () => {
+  // Tear down the prerace 3D preview before the race scene mounts.
+  cleanupPreracePreview();
+  startRace();
+});
 
-document.getElementById('btn-garage-back').addEventListener('click', () => {
-  if (careerState && careerState.ownedCars.length > 0) showCareerHome();
-  else show('screen-title');
+document.getElementById('btn-garage-next-race').addEventListener('click', () => {
+  if (!careerState || !careerState.currentCarId) return;
+  cleanupPaintPreview();
+  onNextRace();
 });
 document.getElementById('btn-garage-buy').addEventListener('click', () => {
+  cleanupPaintPreview();
   renderBuyShop(careerState, onBuyCar);
   show('screen-buyshop');
 });
@@ -260,27 +565,54 @@ async function onBuyCar(carId) {
   show('screen-garage');
 }
 
-document.getElementById('btn-buyshop-back').addEventListener('click', () => {
-  renderGarage(careerState, onGarageCarPick);
-  show('screen-garage');
-});
-
 document.querySelectorAll('#screen-cardetail .tab').forEach(btn => {
   btn.addEventListener('click', () => onTabChange(btn.dataset.tab));
 });
-document.getElementById('btn-cardetail-back').addEventListener('click', () => {
-  renderGarage(careerState, onGarageCarPick);
-  show('screen-garage');
-});
 document.getElementById('btn-cardetail-set-current').addEventListener('click', onSetCurrent);
 
+// Build the next career-race balance and route the player through the
+// pre-race info screen (opponent + prize + track + 3D preview). The
+// actual race fires from the prerace RACE button.
 async function onNextRace() {
-  quickRaceMode = false;  // career race
+  quickRaceMode = false;
+  _careerQuickRace = false;
   raceBalance = buildRaceBalance(careerState, Date.now() | 0);
-  // Expose for in-browser debugging — handy to verify AI handicap on the fly.
   if (typeof window !== 'undefined') window.__dr3d_raceBalance = raceBalance;
-  console.log(`[dr3d] race start | classWins=${careerState.classWins} | AI rtMean=${raceBalance.ai.rtMean.toFixed(2)}s | AI shiftSlack=${raceBalance.ai.shiftBandSlackRpm.toFixed(0)}rpm`);
-  startRace();
+  console.log(`[dr3d] prerace | classWins=${careerState.classWins} | AI rtMean=${raceBalance.ai.rtMean.toFixed(2)}s | AI shiftSlack=${raceBalance.ai.shiftBandSlackRpm.toFixed(0)}rpm`);
+  show('screen-prerace');
+  renderPreRaceScreen();
+}
+
+function renderPreRaceScreen() {
+  const envId = pickEnvForCareerRace(careerState);
+  const previewParent = document.getElementById('prerace-preview');
+  previewParent.innerHTML = '';
+  mountPreracePreview(previewParent, raceBalance, envId);
+
+  const opp = raceBalance.cars[1];
+  const oppPartsTotal =
+    opp.appliedParts ? Object.values(opp.appliedParts).reduce((a, b) => a + b, 0) : 0;
+  const oppMods = oppPartsTotal === 0 ? 'Stock' : `${oppPartsTotal} mod${oppPartsTotal > 1 ? 's' : ''} installed`;
+  document.getElementById('prerace-opponent').innerHTML = `
+    <div class="strong">${opp.name}</div>
+    <div class="meta">CLASS ${CLASS_NAMES[careerState.classIndex]} · ${opp.archetype}</div>
+    <div class="meta">${oppMods}</div>
+  `;
+
+  const baseReward = CLASS_BASE_REWARD[careerState.classIndex];
+  const perfectBonus = Math.floor(baseReward * PERFECT_RT_BONUS_FRAC);
+  const lossReward = Math.floor(baseReward * LOSE_REWARD_FRAC);
+  document.getElementById('prerace-prize').innerHTML = `
+    <div><span class="strong">Win:</span> <span class="gold">+${baseReward.toLocaleString()}g</span></div>
+    <div class="meta">Perfect RT: <span class="gold">+${perfectBonus}g</span></div>
+    <div class="meta">Lose: <span class="gold">+${lossReward}g</span></div>
+  `;
+
+  const trackName = envId.charAt(0).toUpperCase() + envId.slice(1);
+  document.getElementById('prerace-track').innerHTML = `
+    <div class="strong">${trackName}</div>
+    <div class="meta">¼ mile · timing tree start</div>
+  `;
 }
 
 function loop(now) {
@@ -299,6 +631,15 @@ function loop(now) {
       tickRace(gameData, raceBalance, FIXED_DT);
       acc -= FIXED_DT;
     }
+    // Sample ghost during racing only; raceTime since green = elapsed
+    if (gameData.raceState === 'racing' || gameData.raceState === 'launching') {
+      const t = Math.max(0, gameData.raceTimeS - gameData.treeGreenAtS);
+      const playerWorldZ = gameData.posZ[0]; // posZ is negative as car moves forward
+      ghostRecorder.tick(t, 1/60, playerWorldZ, gameData.rpm[0], gameData.gear[0]);
+      if (ghostPlayer && ghostPlayer.active) ghostPlayer.update(t);
+    }
+    const throttle = gameData.inputGas[0] ? 1 : 0;
+    updateEngine(gameData.rpm[0], throttle);
     if (tachUpdater) tachUpdater.update(gameData.rpm[0], gameData.gear[0], gameData.slip[0]);
     updateButtonHints(gameData);
     document.getElementById('hud-gear').textContent = 'GEAR ' + gameData.gear[0];
@@ -366,40 +707,116 @@ function refreshOpponentResult() {
   detail.textContent = `Your ET: ${pFinTime}   Opponent: ${aFinTime}`;
 }
 
+/** Paint the top-10 RotW board into the results screen's leaderboard slot.
+ *  Called after submitting the player's run, so the just-submitted entry
+ *  is visible (with the `me` highlight class). */
+function renderRotwResultsBoard(top) {
+  const board = document.getElementById('rotw-results-board');
+  if (!board) return;
+  if (!top || !top.entries || top.entries.length === 0) {
+    board.innerHTML = '<div class="empty">No times yet — yours might be the first!</div>';
+    return;
+  }
+  board.innerHTML = top.entries.map((e, i) => {
+    const meCls = e.isMe ? 'row me' : 'row';
+    const name = (e.metadata && e.metadata.name) || ('user-' + (e.user_id || '?'));
+    return `<div class="${meCls}"><span>${i + 1}. ${name}</span><span>${e.value.toFixed(3)}s</span></div>`;
+  }).join('');
+}
+
 function showResults() {
   let el = document.getElementById('screen-results');
   if (!el) {
+    stopEngine();
     el = document.createElement('div');
     el.id = 'screen-results'; el.className = 'screen';
-    el.innerHTML = `
-      <h2 id="res-headline" style="font-size:96px;margin-bottom:32px"></h2>
-      <div id="res-detail" style="font-size:32px;margin-bottom:16px"></div>
-      <div id="res-rt" style="font-size:24px;opacity:0.8;margin-bottom:16px"></div>
-      <div id="res-gold" style="font-size:28px;color:#ffd14a;font-weight:700;margin-bottom:24px;min-height:34px"></div>
-      <button id="btn-rerun" class="btn-primary">RACE AGAIN</button>
-      <button id="btn-results-garage" class="btn-secondary">GARAGE</button>
-    `;
+    if (rotwActive) {
+      // Race-of-the-week post-race screen: leaderboard front and center,
+      // RETRY (re-runs the same RotW with a fresh ghost) and MAIN MENU.
+      el.innerHTML = `
+        <h2 id="res-headline" style="font-size:60px;margin-bottom:14px"></h2>
+        <div id="res-detail" style="font-size:24px;margin-bottom:12px"></div>
+        <div id="res-rt" style="font-size:20px;opacity:0.8;margin-bottom:14px"></div>
+        <div id="rotw-results-board" class="rotw-board" style="margin-bottom:18px;">
+          <div class="empty">Submitting your time…</div>
+        </div>
+        <button id="btn-rotw-retry" class="btn-primary btn-buy">RETRY</button>
+        <button id="btn-rotw-mainmenu" class="btn-secondary">MAIN MENU</button>
+      `;
+    } else {
+      // Quick races (both standalone and career-context) get a TRACK
+      // SELECTION secondary button instead of GARAGE — the player's natural
+      // next move is to pick a different track, not to manage cars.
+      const isQuickRace = quickRaceMode || _careerQuickRace;
+      const secondaryLabel = isQuickRace ? 'TRACK SELECTION' : 'GARAGE';
+      const secondaryId = isQuickRace ? 'btn-results-tracks' : 'btn-results-garage';
+      el.innerHTML = `
+        <h2 id="res-headline" style="font-size:96px;margin-bottom:32px"></h2>
+        <div id="res-detail" style="font-size:32px;margin-bottom:16px"></div>
+        <div id="res-rt" style="font-size:24px;opacity:0.8;margin-bottom:16px"></div>
+        <div id="res-gold" style="font-size:28px;color:#ffd14a;font-weight:700;margin-bottom:24px;min-height:34px"></div>
+        <button id="btn-rerun" class="btn-primary btn-buy"></button>
+        <button id="${secondaryId}" class="btn-secondary">${secondaryLabel}</button>
+      `;
+    }
     document.getElementById('ui').appendChild(el);
-    document.getElementById('btn-rerun').addEventListener('click', () => {
-      // Stop the rAF race loop so it doesn't re-trigger showResults() on the
-      // next frame (raceState is still 'finished'). startRace() flips it back
-      // on; showCareerHome() leaves it off until NEXT RACE.
-      started = false;
-      el.remove();
-      if (careerState && !quickRaceMode) {
-        // Take user straight to a new race (their natural expectation).
-        onNextRace();
+    if (rotwActive) {
+      document.getElementById('btn-rotw-retry').addEventListener('click', async () => {
+        started = false;
+        el.remove();
+        // Rebuild the RotW balance and re-fetch the current top ghost so a
+        // fresh race uses the latest leader (which may now be the player).
+        if (!rotwChallenge) rotwChallenge = await renderRotwScreen();
+        raceBalance = buildRotwBalance(rotwChallenge);
+        activeGhostFloats = await fetchCurrentGhost(rotwChallenge.week);
+        rotwActive = true;
+        _rotwSubmitted = false;
+        quickRaceMode = false;
+        startRace();
+      });
+      document.getElementById('btn-rotw-mainmenu').addEventListener('click', () => {
+        started = false;
+        el.remove();
+        rotwActive = false;
+        activeGhostFloats = null;
+        show('screen-title');
+      });
+    } else {
+      document.getElementById('btn-rerun').textContent =
+        (careerState && !quickRaceMode) ? 'NEXT RACE' : 'RACE AGAIN';
+      document.getElementById('btn-rerun').addEventListener('click', () => {
+        started = false;
+        el.remove();
+        if (_careerQuickRace) {
+          raceBalance = buildCareerQuickRaceBalance(careerState, Date.now() | 0);
+          startRace();
+        } else if (careerState && !quickRaceMode) {
+          onNextRace();
+        } else {
+          startRace();
+        }
+      });
+      const isQuickRaceMode = quickRaceMode || _careerQuickRace;
+      if (isQuickRaceMode) {
+        document.getElementById('btn-results-tracks').addEventListener('click', () => {
+          started = false;
+          el.remove();
+          // Re-enter the same flow the race came from so the player can pick
+          // a fresh track and (for standalone) car. Clears prior balance via
+          // the entry function rebuilding it on selection.
+          if (_careerQuickRace) onCareerQuickRace();
+          else onQuickRace();
+        });
       } else {
-        startRace();  // quick race fallback / no career
+        document.getElementById('btn-results-garage').addEventListener('click', () => {
+          started = false;
+          el.remove();
+          if (!careerState) careerState = newCareer();
+          renderGarage(careerState, onGarageCarPick);
+          show('screen-garage');
+        });
       }
-    });
-    document.getElementById('btn-results-garage').addEventListener('click', () => {
-      started = false;
-      el.remove();
-      if (!careerState) careerState = newCareer();
-      renderGarage(careerState, onGarageCarPick);
-      show('screen-garage');
-    });
+    }
   }
   show('screen-results');
   // Decide winner at the moment the player is done. If player crossed first,
@@ -448,24 +865,51 @@ function showResults() {
   // Record career result if we're in career mode (not quick race)
   recordCareerResult();
 
+  // Submit RotW result if this was a RotW race (one-shot guard).
+  // Note: rotwActive stays TRUE until the user leaves the results screen
+  // (RETRY keeps it on; MAIN MENU clears it), so the post-race UI reads
+  // as a RotW screen and the leaderboard refresh below sees rotwActive.
+  if (rotwActive && !_rotwSubmitted && gameData.finished[PLAYER_CAR_IDX]) {
+    _rotwSubmitted = true;
+    const etS = gameData.finishTimeS[PLAYER_CAR_IDX];
+    const ghostBytes = ghostRecorder.finalize();
+    submitRotwResult(rotwChallenge.week, etS, ghostBytes).then(async () => {
+      // Pull the fresh top-10 (now including the just-submitted run) and
+      // paint it into the post-race board.
+      const top = await fetchTop(rotwChallenge.week, 10);
+      renderRotwResultsBoard(top);
+    });
+  } else if (rotwActive) {
+    // Already-submitted (e.g. RETRY → second result paints) — fetch + render
+    fetchTop(rotwChallenge.week, 10).then(renderRotwResultsBoard);
+  }
+
   async function recordCareerResult() {
-    if (!careerState || quickRaceMode) return;
+    if (!careerState) return;
+    // Standalone quick race (off the title screen) doesn't pay career gold.
+    if (quickRaceMode && !_careerQuickRace) return;
     const won = gameData.winnerCarIdx === PLAYER_CAR_IDX;
     const perfectRT = gameData.rtS[PLAYER_CAR_IDX] > 0 && gameData.rtS[PLAYER_CAR_IDX] < 0.100;
     const reward = computeRaceReward({
       classIndex: careerState.classIndex,
       won,
-      mode: 'career',
+      // Career quick race uses the lower 'quick' rate (50% of class base)
+      // and doesn't count toward classWins / advancement.
+      mode: _careerQuickRace ? 'quick' : 'career',
       perfectRT,
     });
-    if (won) {
+    if (_careerQuickRace) {
+      careerState = addGold(careerState, reward);
+    } else if (won) {
       careerState = recordWin(careerState, { gold: reward });
     } else {
       careerState = recordLoss(careerState, { gold: reward });
     }
     await saveCareer(careerState);
-    // Write gold delta into the placeholder above the buttons
-    document.getElementById('res-gold').textContent =
-      `+${reward}g  · Total: ${careerState.gold.toLocaleString()}g`;
+    // Write gold delta only — the total is shown in the top bar.
+    document.getElementById('res-gold').textContent = `+${reward}g`;
+    // Top bar was rendered before the gold update — refresh so its total
+    // reflects the new balance instead of the pre-race number.
+    updateTopBar('screen-results');
   }
 }
