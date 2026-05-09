@@ -4,13 +4,20 @@
  * from multiple angles.
  *
  * Lifecycle:
- *   - mountPaintPreview(parent, archetype, paint) creates everything and
- *     returns { update(paint), dispose() }.
+ *   - mountPaintPreview(parent, archetype, paint) creates the renderer
+ *     (or reuses the existing one if it's already attached to `parent`)
+ *     and returns { update(paint), dispose() }.
  *   - cleanupPaintPreview() disposes the active preview (idempotent).
  *
- * Always call cleanupPaintPreview() before mounting a fresh one OR before
- * leaving the screen — leaving the rAF loop running on a detached canvas
- * leaks a WebGL context.
+ * The reuse path is critical for the garage carousel — every prev/next tap
+ * used to spin up a new WebGLRenderer. Mobile Safari has a hard limit on
+ * live WebGL contexts per process and `forceContextLoss()` is async, so 3-4
+ * rapid switches blew the cap and OOM-killed the tab. Now the renderer +
+ * canvas + scene + lights persist across switches and only the car mesh
+ * group is rebuilt.
+ *
+ * Always call cleanupPaintPreview() before leaving the screen — leaving the
+ * rAF loop running on a detached canvas leaks a WebGL context.
  */
 import { buildCar } from './car-models.js';
 
@@ -38,7 +45,32 @@ export function cleanupPaintPreview() {
   _state = null;
 }
 
+function _disposeCarHolder(carHolder) {
+  while (carHolder.children.length > 0) {
+    const c = carHolder.children[0];
+    carHolder.remove(c);
+    c.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+        else o.material.dispose();
+      }
+    });
+  }
+}
+
 export function mountPaintPreview(parent, archetype, paint) {
+  // Fast path: same parent, canvas still attached → swap car only.
+  if (_state && _state.parent === parent &&
+      _state.canvas && _state.canvas.parentNode === parent) {
+    _state.archetype = archetype;
+    _disposeCarHolder(_state.carHolder);
+    const car = buildCar(archetype, paint.primary, paint.secondary, paint.stripe || 'none');
+    _state.carHolder.add(car);
+    return { update: (p) => _state && _state.rebuild(p), dispose: cleanupPaintPreview };
+  }
+
+  // Otherwise build fresh (and tear down any stale state first).
   cleanupPaintPreview();
   const T = window.THREE;
   const canvas = document.createElement('canvas');
@@ -65,18 +97,9 @@ export function mountPaintPreview(parent, archetype, paint) {
   scene.add(carHolder);
 
   function rebuild(p) {
-    while (carHolder.children.length > 0) {
-      const c = carHolder.children[0];
-      carHolder.remove(c);
-      c.traverse((o) => {
-        if (o.geometry) o.geometry.dispose();
-        if (o.material) {
-          if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
-          else o.material.dispose();
-        }
-      });
-    }
-    const car = buildCar(archetype, p.primary, p.secondary, p.stripe || 'none');
+    _disposeCarHolder(carHolder);
+    const car = buildCar(_state ? _state.archetype : archetype,
+                         p.primary, p.secondary, p.stripe || 'none');
     carHolder.add(car);
   }
   rebuild(paint);
@@ -89,7 +112,8 @@ export function mountPaintPreview(parent, archetype, paint) {
     if (_state) _state.rafId = requestAnimationFrame(tick);
   }
 
-  _state = { renderer, scene, carHolder, rebuild, rafId: null };
+  _state = { renderer, scene, carHolder, rebuild, rafId: null,
+             parent, canvas, archetype };
   _state.rafId = requestAnimationFrame(tick);
 
   return {

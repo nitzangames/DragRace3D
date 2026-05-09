@@ -48,10 +48,16 @@ function _renderCurrent(careerState, onCarPick) {
   const ownedCar = owned[_carouselIdx];
   const car = balance.cars.find(c => c.id === ownedCar.carId);
 
-  // Mount fresh 3D preview for this car (mountPaintPreview disposes the
-  // previous one internally, so prev/next cycling is safe).
+  // Mount the 3D preview. mountPaintPreview reuses the existing renderer
+  // if its canvas is still attached to this parent (it almost always is) —
+  // critical on mobile Safari, where every fresh WebGLRenderer chews through
+  // the per-process WebGL-context cap and a few prev/next taps OOM the tab.
+  // Only clear stale non-canvas content (e.g. the "no cars yet" empty div).
   const previewParent = document.getElementById('garage-preview');
-  previewParent.innerHTML = '';
+  for (let i = previewParent.children.length - 1; i >= 0; i--) {
+    const c = previewParent.children[i];
+    if (c.tagName !== 'CANVAS') c.remove();
+  }
   mountPaintPreview(previewParent, car.archetype, ownedCar.paint);
 
   const isCurrent = careerState.currentCarId === ownedCar.carId;
