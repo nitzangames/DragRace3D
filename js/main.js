@@ -3,7 +3,7 @@ import { balance } from './balance.js';
 import { allocGameData, resetRace } from './gameData.js';
 import { tickRace } from './race-logic.js';
 import { initInput } from './input.js';
-import { buildRaceScene, renderFrame } from './renderer3d.js';
+import { buildRaceScene, rebuildCarsInScene, renderFrame } from './renderer3d.js';
 import { createChaseCamera, updateChaseCamera } from './camera3d.js';
 import { buildTachSVG } from './tach.js';
 import { resetEffects, updateEffects } from './effects.js';
@@ -193,20 +193,34 @@ canvas.addEventListener('webglcontextrestored', (e) => {
   console.warn('[dr3d] WebGL context restored', e);
 }, false);
 
+// Track which env the cached scene currently has loaded so we only rebuild
+// the scenery sub-group when the env actually changes between races.
+let _currentEnvId = null;
+
 function startRace() {
-  // Rebuild scene every race — player may have switched cars / classes.
-  // Aggressively dispose the previous scene's GPU resources (geometries,
-  // materials, textures, shadow maps) before throwing it away. Mobile
-  // Safari has a tight per-tab memory ceiling and was silently killing the
-  // tab after a few races as un-disposed buffers piled up in GPU memory.
-  if (scene) {
-    disposeScene(scene);
-    scene = null;
-  }
+  // Cache the race scene across races. The first call builds everything;
+  // subsequent calls keep the same THREE.Scene + lights + strip + tree +
+  // gantry alive and only swap out the cars (different archetype/colors)
+  // and the env scenery (only if the env id changed). Was: full rebuild
+  // every race, allocating ~1000+ mesh objects + freshly-allocated shadow
+  // maps. Mobile Safari was OOM-killing the tab after a few races.
   const envId = quickRaceMode ? quickRaceEnvId : pickEnvForCareerRace(careerState || { classIndex: 0 });
-  const built = buildRaceScene(raceBalance, envId);
-  scene = built.scene; cars = built.cars; env = built.env;
-  env.ghostMesh = built.ghostMesh;
+  if (!scene) {
+    const built = buildRaceScene(raceBalance, envId);
+    scene = built.scene; cars = built.cars; env = built.env;
+    env.ghostMesh = built.ghostMesh;
+    _currentEnvId = envId;
+  } else {
+    // Re-use existing scene; swap cars + ghost (different car each race)
+    // and only rebuild scenery if the track changed.
+    const swapped = rebuildCarsInScene(scene, raceBalance, cars, env.ghostMesh);
+    cars = swapped.cars;
+    env.ghostMesh = swapped.ghostMesh;
+    if (envId !== _currentEnvId) {
+      applyEnvPreset(env, envId);
+      _currentEnvId = envId;
+    }
+  }
   resetRace(gameData, raceBalance, Date.now() | 0);
   resetEffects();
   _rotwSubmitted = false;

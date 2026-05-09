@@ -9,6 +9,42 @@ export function buildRaceScene(balance, envId) {
   const T = window.THREE;
   const scene = new T.Scene();
   const env = buildClassicEnv(scene, envId);
+  const { cars, ghostMesh } = rebuildCarsInScene(scene, balance, null, null);
+  initEffects(scene);
+  return { scene, cars, env, ghostMesh };
+}
+
+/**
+ * Swap the player + opponent + ghost meshes in an existing scene without
+ * touching the strip / lights / scenery. Disposes the previous cars'
+ * geometries and materials before adding the new ones. Used by main.js
+ * when it caches the race scene across races (huge win on mobile —
+ * skips ~1000 mesh allocations per restart).
+ *
+ * Pass oldCars/oldGhostMesh = null on the very first call.
+ */
+export function rebuildCarsInScene(scene, balance, oldCars, oldGhostMesh) {
+  const T = window.THREE;
+  if (oldCars) {
+    for (const c of oldCars) {
+      scene.remove(c);
+      c.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          const ms = Array.isArray(o.material) ? o.material : [o.material];
+          for (const m of ms) {
+            if (m.map) m.map.dispose();
+            m.dispose();
+          }
+        }
+      });
+    }
+  }
+  if (oldGhostMesh) {
+    scene.remove(oldGhostMesh);
+    if (oldGhostMesh.geometry) oldGhostMesh.geometry.dispose();
+    if (oldGhostMesh.material) oldGhostMesh.material.dispose();
+  }
   const cars = [];
   for (let i = 0; i < NUM_CARS; i++) {
     const cd = balance.cars[i];
@@ -17,18 +53,13 @@ export function buildRaceScene(balance, envId) {
     scene.add(car);
     cars.push(car);
   }
-  initEffects(scene);
-
-  // Build a translucent ghost car in the opponent lane (lane 1, x = -LANE_OFFSET_X).
-  // cars[1] is a THREE.Group; children[0] is always the body mesh for every archetype.
   let ghostMesh = null;
   if (cars.length >= 2 && cars[1].children && cars[1].children[0] && cars[1].children[0].geometry) {
     ghostMesh = buildGhostMesh(T, cars[1].children[0].geometry);
     ghostMesh.position.x = -LANE_OFFSET_X;
     scene.add(ghostMesh);
   }
-
-  return { scene, cars, env, ghostMesh };
+  return { cars, ghostMesh };
 }
 
 // Drift constants for the at-speed wobble. Cars sway gently side-to-side as

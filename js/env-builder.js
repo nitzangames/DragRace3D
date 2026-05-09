@@ -25,8 +25,12 @@ export function buildClassicEnv(scene, presetId) {
   const sun = new T.DirectionalLight(initial.sun, initial.lightIntensity);
   sun.position.set(60, 90, 40);
   sun.castShadow = true;
-  sun.shadow.mapSize.width = 1024;
-  sun.shadow.mapSize.height = 1024;
+  // 512² shadow map (was 1024²) — quarters the GPU memory cost
+  // (~1MB instead of ~4MB) and is plenty for a chase-camera car shadow.
+  // Matters on mobile Safari where the tab gets OOM-killed if total
+  // GPU usage drifts above ~256MB.
+  sun.shadow.mapSize.width = 512;
+  sun.shadow.mapSize.height = 512;
   sun.shadow.camera.near = 1;
   sun.shadow.camera.far = 220;
   sun.shadow.camera.left = -60;
