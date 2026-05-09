@@ -244,8 +244,10 @@ export function buildIndustrial(parent, T) {
   const overpass = new T.Mesh(new T.BoxGeometry(140, 4, 8),
     new T.MeshLambertMaterial({ color: 0x4a4a52 }));
   overpass.position.set(0, 18, -360); parent.add(overpass);
+  // Piers: 1.5m wide so the center pier clears the lanes (cars sit at
+  // x=±2.5 — old 4m width clipped through the inside of the racing line).
   for (let px = -50; px <= 50; px += 25) {
-    const pier = new T.Mesh(new T.BoxGeometry(4, 18, 8),
+    const pier = new T.Mesh(new T.BoxGeometry(1.5, 18, 4),
       new T.MeshLambertMaterial({ color: 0x4a4a52 }));
     pier.position.set(px, 9, -360); parent.add(pier);
   }
