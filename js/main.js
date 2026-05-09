@@ -19,7 +19,7 @@ import { renderBuyShop } from './buy-shop.js';
 import { renderTuningUI } from './tuning-ui.js';
 import { renderPaintUI } from './paint-ui.js';
 import { cleanupPaintPreview, mountPaintPreview } from './paint-preview.js';
-import { mountPreracePreview, cleanupPreracePreview } from './prerace-preview.js';
+import { mountPreracePreview, cleanupPreracePreview, pausePreracePreview } from './prerace-preview.js';
 import { CLASS_BASE_REWARD, PERFECT_RT_BONUS_FRAC, LOSE_REWARD_FRAC, CLASS_NAMES } from './constants.js';
 import { computeRaceReward } from './economy.js';
 import { renderQuickRace, buildQuickRaceBalance, renderTrackPicker } from './quick-race.js';
@@ -103,7 +103,7 @@ const SCREEN_BACK = {
     renderGarage(careerState, onGarageCarPick);
     show('screen-garage');
   },
-  'screen-prerace': () => { cleanupPreracePreview(); showCareerHome(); },
+  'screen-prerace': () => { pausePreracePreview(); showCareerHome(); },
   'screen-quickrace':  () => show('quick-race-track'),
   'quick-race-track':  () => show('screen-title'),
   'rotw':              () => show('screen-title'),
@@ -596,8 +596,10 @@ document.getElementById('btn-career-garage').addEventListener('click', () => onG
 document.getElementById('btn-next-race').addEventListener('click', () => onNextRace());
 document.getElementById('btn-career-quick-race').addEventListener('click', () => onCareerQuickRace());
 document.getElementById('btn-prerace-race').addEventListener('click', () => {
-  // Tear down the prerace 3D preview before the race scene mounts.
-  cleanupPreracePreview();
+  // Just pause the prerace preview's render loop; keeping the WebGL
+  // context alive across race transitions avoids a context churn that
+  // was OOM-killing the tab on mobile Safari right at race-start.
+  pausePreracePreview();
   startRace();
 });
 
@@ -643,7 +645,12 @@ async function onNextRace() {
 function renderPreRaceScreen() {
   const envId = pickEnvForCareerRace(careerState);
   const previewParent = document.getElementById('prerace-preview');
-  previewParent.innerHTML = '';
+  // Preserve any existing canvas so mountPreracePreview's reuse path keeps
+  // the WebGL context alive across visits (mobile-Safari context cap).
+  for (let i = previewParent.children.length - 1; i >= 0; i--) {
+    const c = previewParent.children[i];
+    if (c.tagName !== 'CANVAS') c.remove();
+  }
   mountPreracePreview(previewParent, raceBalance, envId);
 
   const opp = raceBalance.cars[1];

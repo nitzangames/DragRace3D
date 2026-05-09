@@ -3,25 +3,53 @@
  * line with the christmas tree between them; camera slowly orbits the
  * tree to give a cinematic look at the matchup.
  *
- * Lifecycle mirrors paint-preview.js — singleton, cleanup before mount.
+ * Lifecycle: when re-mounting onto the same parent, the renderer + canvas
+ * are reused and only the scene contents (cars + env-coloured lights/fog)
+ * are rebuilt. Mobile Safari has a hard per-process WebGL context cap and
+ * forceContextLoss() is async, so a fresh renderer per visit was chewing
+ * through contexts and OOM-killing the tab right at race-start.
+ *
+ * cleanupPreracePreview() fully tears everything down — call it when
+ * leaving the screen on a path where the user won't return (rare, but
+ * cheap insurance against rAF leaks on detached canvases).
  */
 import { ENV_PRESETS } from './env-presets.js';
 import { buildCar } from './car-models.js';
 
 let _state = null;
 
-export function cleanupPreracePreview() {
-  if (!_state) return;
-  if (_state.rafId) cancelAnimationFrame(_state.rafId);
-  if (_state.scene) {
-    _state.scene.traverse((o) => {
+function _disposeSceneContents(scene) {
+  // Walk children in reverse so removal is safe; dispose geometry/material
+  // for every mesh + its descendants, then strip the scene.
+  for (let i = scene.children.length - 1; i >= 0; i--) {
+    const c = scene.children[i];
+    c.traverse((o) => {
       if (o.geometry) o.geometry.dispose();
       if (o.material) {
         if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
         else o.material.dispose();
       }
     });
+    scene.remove(c);
   }
+}
+
+/** Pause the render loop without disposing the WebGL context. Use when
+ *  navigating away from the prerace screen — keeps the context alive for
+ *  the next visit (avoids the dispose / recreate context churn that was
+ *  killing the tab on mobile Safari at race-start). */
+export function pausePreracePreview() {
+  if (!_state) return;
+  if (_state.rafId) {
+    cancelAnimationFrame(_state.rafId);
+    _state.rafId = null;
+  }
+}
+
+export function cleanupPreracePreview() {
+  if (!_state) return;
+  if (_state.rafId) cancelAnimationFrame(_state.rafId);
+  if (_state.scene) _disposeSceneContents(_state.scene);
   if (_state.renderer) {
     try {
       _state.renderer.dispose();
@@ -31,20 +59,9 @@ export function cleanupPreracePreview() {
   _state = null;
 }
 
-export function mountPreracePreview(parent, raceBalance, envId) {
-  cleanupPreracePreview();
+function _populateScene(scene, raceBalance, envId) {
   const T = window.THREE;
-  const canvas = document.createElement('canvas');
-  canvas.className = 'prerace-preview-canvas';
-  canvas.width = 720; canvas.height = 320;
-  parent.appendChild(canvas);
-
-  const renderer = new T.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setSize(canvas.width, canvas.height, false);
-
   const preset = ENV_PRESETS[envId] || ENV_PRESETS.day;
-  const scene = new T.Scene();
   scene.background = new T.Color(preset.fog.color);
   scene.fog = new T.Fog(preset.fog.color, 25, 120);
 
@@ -54,26 +71,22 @@ export function mountPreracePreview(parent, raceBalance, envId) {
   sun.position.set(8, 10, 6);
   scene.add(sun);
 
-  // Strip patch (just enough for the staging area).
   const stripMat = new T.MeshLambertMaterial({ color: 0x2d2d31 });
   const strip = new T.Mesh(new T.PlaneGeometry(15, 60), stripMat);
   strip.rotation.x = -Math.PI / 2;
   strip.position.set(0, 0, -15);
   scene.add(strip);
-  // Lane stripe (yellow center line).
   const lineMat = new T.MeshBasicMaterial({ color: 0xd6b22f });
   const line = new T.Mesh(new T.PlaneGeometry(0.25, 60), lineMat);
   line.rotation.x = -Math.PI / 2;
   line.position.set(0, 0.01, -15);
   scene.add(line);
-  // Ground beyond the strip.
   const dirtMat = new T.MeshLambertMaterial({ color: preset.ground });
   const dirt = new T.Mesh(new T.PlaneGeometry(120, 120), dirtMat);
   dirt.rotation.x = -Math.PI / 2;
   dirt.position.set(0, -0.05, -10);
   scene.add(dirt);
 
-  // Tiny christmas tree — focal point of the orbit.
   const tree = new T.Group();
   const post = new T.Mesh(
     new T.BoxGeometry(0.4, 6, 0.4),
@@ -94,7 +107,6 @@ export function mountPreracePreview(parent, raceBalance, envId) {
   tree.position.set(0, 0, -1.5);
   scene.add(tree);
 
-  // Both cars staged at start. Player on +X (lane 0 = right), opponent on -X.
   const player = raceBalance.cars[0];
   const opponent = raceBalance.cars[1];
   const playerCar = buildCar(player.archetype, player.color1, player.color2, player.stripe || 'none');
@@ -103,6 +115,35 @@ export function mountPreracePreview(parent, raceBalance, envId) {
   const opponentCar = buildCar(opponent.archetype, opponent.color1, opponent.color2, opponent.stripe || 'none');
   opponentCar.position.set(-2.5, 0, 2);
   scene.add(opponentCar);
+}
+
+export function mountPreracePreview(parent, raceBalance, envId) {
+  const T = window.THREE;
+
+  // Fast path: reuse the existing renderer + canvas + camera; swap scene
+  // contents and restart the rAF loop if it was paused.
+  if (_state && _state.parent === parent &&
+      _state.canvas && _state.canvas.parentNode === parent) {
+    _disposeSceneContents(_state.scene);
+    _populateScene(_state.scene, raceBalance, envId);
+    if (!_state.rafId && _state.tick) {
+      _state.rafId = requestAnimationFrame(_state.tick);
+    }
+    return { dispose: cleanupPreracePreview };
+  }
+
+  cleanupPreracePreview();
+  const canvas = document.createElement('canvas');
+  canvas.className = 'prerace-preview-canvas';
+  canvas.width = 720; canvas.height = 320;
+  parent.appendChild(canvas);
+
+  const renderer = new T.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(canvas.width, canvas.height, false);
+
+  const scene = new T.Scene();
+  _populateScene(scene, raceBalance, envId);
 
   const camera = new T.PerspectiveCamera(42, canvas.width / canvas.height, 0.1, 200);
 
@@ -111,7 +152,7 @@ export function mountPreracePreview(parent, raceBalance, envId) {
   const center = { x: 0, y: 2.2, z: -1.5 };
   const radius = 10;
   const heightOffset = 3.5;
-  let angle = 0.6; // start a few degrees past straight-on so cars aren't edge-on
+  let angle = 0.6;
 
   function tick() {
     angle += 0.004;
@@ -125,7 +166,7 @@ export function mountPreracePreview(parent, raceBalance, envId) {
     if (_state) _state.rafId = requestAnimationFrame(tick);
   }
 
-  _state = { renderer, scene, rafId: null };
+  _state = { renderer, scene, parent, canvas, rafId: null, tick };
   _state.rafId = requestAnimationFrame(tick);
 
   return { dispose: cleanupPreracePreview };

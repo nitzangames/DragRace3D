@@ -27,7 +27,12 @@ function _renderFirstCarCurrent(cars, careerState, onPick) {
   const nextBtn = document.getElementById('firstcar-next');
   const buyBtn = document.getElementById('btn-firstcar-buy');
 
-  previewParent.innerHTML = '';
+  // Preserve any existing canvas so mountPaintPreview's reuse path keeps
+  // the WebGL context alive across cycle taps (mobile-Safari context cap).
+  for (let i = previewParent.children.length - 1; i >= 0; i--) {
+    const c = previewParent.children[i];
+    if (c.tagName !== 'CANVAS') c.remove();
+  }
   mountPaintPreview(previewParent, car.archetype, {
     primary: car.color1, secondary: car.color2, stripe: 'none',
   });

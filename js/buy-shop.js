@@ -59,9 +59,13 @@ function _renderCurrent(careerState, onBuy) {
   const owned = ownedIds.has(car.id);
   const affordable = !owned && careerState.gold >= car.price;
 
-  // Preview uses the car's stock paint colors. mountPaintPreview disposes
-  // any previous preview internally, so cycling tabs / cars is safe.
-  previewParent.innerHTML = '';
+  // Preview uses the car's stock paint colors. Preserve any existing canvas
+  // so mountPaintPreview's reuse path keeps the WebGL context alive across
+  // cycle taps (mobile-Safari context-cap fix).
+  for (let i = previewParent.children.length - 1; i >= 0; i--) {
+    const c = previewParent.children[i];
+    if (c.tagName !== 'CANVAS') c.remove();
+  }
   mountPaintPreview(previewParent, car.archetype, {
     primary: car.color1,
     secondary: car.color2,
