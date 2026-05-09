@@ -271,7 +271,7 @@ function showTutorialOverlay() {
       <div class="step">Hold <b>SHIFT</b> and <b>GAS</b> together to start the staging lights.</div>
       <div class="step">When the light turns <b>GREEN</b>, release <b>SHIFT</b> to launch.</div>
       <div class="step" style="opacity:0.7;font-size:0.85em">Keep tapping <b>SHIFT</b> at redline to upshift through the gears.</div>
-      <button id="btn-tutorial-ok" class="btn-primary btn-buy">GOT IT</button>
+      <button id="btn-tutorial-ok" class="tutorial-ok-btn">GOT IT</button>
     </div>
   `;
   hud.appendChild(overlay);
@@ -807,24 +807,24 @@ function updateButtonHints(gd) {
   const gasHeld = gd.inputGas[PLAYER_CAR_IDX] === 1;
   const shiftHeld = gd.inputShift[PLAYER_CAR_IDX] === 1;
   if (state === 'staging' || state === 'tree') {
-    rightHint = 'HOLD';
+    rightHint = '[HOLD]';
     // If the player is on the gas alone, urgently prompt them to also hold
     // SHIFT (otherwise the staging timer never starts).
     if (gasHeld && !shiftHeld) {
       leftHint = 'HOLD!';
       leftFlash = true;
     } else {
-      leftHint = 'HOLD';
+      leftHint = '[HOLD]';
     }
   } else if (state === 'launching' && gd.treeGreenAtS > 0) {
-    rightHint = 'HOLD';
+    rightHint = '[HOLD]';
     leftFlash = true;
     // Escalate from "LET GO" to a louder "RELEASE!" if the player has been
     // sitting on SHIFT for more than half a second after the green fired.
     const sinceGreen = gd.raceTimeS - gd.treeGreenAtS;
     leftHint = (shiftHeld && sinceGreen > 0.5) ? 'RELEASE!' : 'LET GO';
   } else if (state === 'racing') {
-    rightHint = 'HOLD';
+    rightHint = '[HOLD]';
     const rpm = gd.rpm[PLAYER_CAR_IDX];
     const playerCar = raceBalance.cars[PLAYER_CAR_IDX];
     const playerRedline = playerCar.redlineRpm;

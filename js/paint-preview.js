@@ -42,6 +42,13 @@ export function cleanupPaintPreview() {
       if (_state.renderer.forceContextLoss) _state.renderer.forceContextLoss();
     } catch (_) {}
   }
+  // Remove the canvas from its parent. Without this, the canvas-preserving
+  // clear loops in garage/buy-shop/firstcar would skip this dead canvas on
+  // re-entry and the next mount would append a SECOND canvas on top, then
+  // a third on the next visit, etc. (visual: stacked car previews).
+  if (_state.canvas && _state.canvas.parentNode) {
+    _state.canvas.parentNode.removeChild(_state.canvas);
+  }
   _state = null;
 }
 
@@ -72,6 +79,13 @@ export function mountPaintPreview(parent, archetype, paint) {
 
   // Otherwise build fresh (and tear down any stale state first).
   cleanupPaintPreview();
+  // Defensive sweep — if a previous visit left an orphaned canvas in the
+  // parent (e.g. cleanup skipped, or _state was nulled by another module),
+  // remove it so we don't end up stacking canvases.
+  for (let i = parent.children.length - 1; i >= 0; i--) {
+    const c = parent.children[i];
+    if (c.tagName === 'CANVAS') c.remove();
+  }
   const T = window.THREE;
   const canvas = document.createElement('canvas');
   canvas.className = 'paint-preview-canvas';

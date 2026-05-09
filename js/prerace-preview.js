@@ -56,6 +56,9 @@ export function cleanupPreracePreview() {
       if (_state.renderer.forceContextLoss) _state.renderer.forceContextLoss();
     } catch (_) {}
   }
+  if (_state.canvas && _state.canvas.parentNode) {
+    _state.canvas.parentNode.removeChild(_state.canvas);
+  }
   _state = null;
 }
 
@@ -133,6 +136,11 @@ export function mountPreracePreview(parent, raceBalance, envId) {
   }
 
   cleanupPreracePreview();
+  // Defensive sweep against orphaned canvases (same rationale as paint-preview).
+  for (let i = parent.children.length - 1; i >= 0; i--) {
+    const c = parent.children[i];
+    if (c.tagName === 'CANVAS') c.remove();
+  }
   const canvas = document.createElement('canvas');
   canvas.className = 'prerace-preview-canvas';
   canvas.width = 720; canvas.height = 320;

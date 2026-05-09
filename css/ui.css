@@ -163,11 +163,20 @@ html, body {
   margin: clamp(10px, 1.5cqi, 16px) 0;
 }
 .tutorial-card .step b { color: #ffd14a; }
-.tutorial-card button {
-  margin-top: clamp(14px, 2.5cqi, 24px);
-  font-size: clamp(16px, 3cqi, 28px);
-  padding: clamp(10px, 1.5cqi, 16px) clamp(20px, 3cqi, 36px);
+.tutorial-card .tutorial-ok-btn {
+  margin-top: clamp(12px, 2cqi, 20px);
+  font-size: clamp(14px, 2.4cqi, 22px);
+  font-weight: 700;
+  letter-spacing: 2px;
+  padding: clamp(8px, 1.2cqi, 12px) clamp(20px, 3cqi, 32px);
+  background: #2a8f50;
+  border: 2px solid #4ac070;
+  color: #fff;
+  border-radius: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
 }
+.tutorial-card .tutorial-ok-btn:active { background: #1f6f3c; }
 
 .hud-chip {
   position: absolute;
@@ -227,11 +236,17 @@ html, body {
 }
 .gas-button.held { background: #2fb060; }
 
-/* Stacked button labels: prompt hint above, big main label, small key hint */
+/* Prompt label pinned to the top edge of the button so it stays visible
+ * above the player's finger. Big and chunky so it's readable at a glance
+ * during the staging countdown. */
 .btn-hint {
-  font-size: clamp(11px, 2cqi, 22px); font-weight: 700; letter-spacing: 3px;
-  min-height: 26px; opacity: 0.9; text-transform: uppercase;
+  position: absolute; top: -8px; left: 0; right: 0;
+  transform: translateY(-100%);
+  font-size: clamp(33px, 6cqi, 66px); font-weight: 800; letter-spacing: 3px;
+  min-height: 1em; opacity: 0.95; text-transform: uppercase;
   text-align: center;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
 }
 .btn-hint.flash { animation: btn-flash 0.45s ease-in-out infinite alternate; }
 @keyframes btn-flash {
