@@ -195,7 +195,17 @@ html, body {
 .race-button {
   position: absolute; bottom: 0;
   height: 220px; width: 50%;
-  border: none; cursor: pointer; touch-action: manipulation;
+  border: none; cursor: pointer;
+  /* touch-action: none disables ALL browser gesture handling on these
+   * buttons (was 'manipulation', which still allowed double-tap-to-zoom
+   * detection — that detection was firing spurious pointercancel events
+   * when the player held both buttons quickly, causing false starts and
+   * stuck inputs). With 'none' the browser leaves the touch entirely to us. */
+  touch-action: none;
+  /* Stop iOS from showing the tap-highlight flash + selection ring on
+   * rapid presses, both of which can briefly steal pointer state. */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none; user-select: none;
   font-family: system-ui; color: #fff;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;

@@ -13,20 +13,33 @@ export function initInput(gameData) {
   }
 
   function bind(btn, holdSetter, edgeSetter) {
+    // Track the active pointerId so a phantom 'pointerup' or 'pointercancel'
+    // for a different pointer (e.g., the second touch on the OTHER race
+    // button) can't end this button's press. The previous wiring would
+    // release on any of pointerup / pointercancel / lostpointercapture
+    // without checking the id, which is what was producing the
+    // "I'm holding both, but the game thinks I let go" stuck-input bug.
+    let activeId = -1;
     btn.addEventListener('pointerdown', e => {
       e.preventDefault();
-      btn.setPointerCapture(e.pointerId);
+      try { btn.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
+      activeId = e.pointerId;
       btn.classList.add('held');
       holdSetter(1);
       if (edgeSetter) edgeSetter(1);
     });
-    function end() {
+    function end(e) {
+      if (e && e.pointerId !== activeId) return;
+      activeId = -1;
       btn.classList.remove('held');
       holdSetter(0);
     }
     btn.addEventListener('pointerup', end);
     btn.addEventListener('pointercancel', end);
-    btn.addEventListener('lostpointercapture', end);
+    // 'lostpointercapture' intentionally NOT bound: it fires on any capture
+    // release, including the implicit one immediately after pointerup, and
+    // can fire spuriously when the browser revokes capture during multi-
+    // touch heuristics. pointerup + pointercancel cover the genuine cases.
   }
 
   bind(gasBtn,
