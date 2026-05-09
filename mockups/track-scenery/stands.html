@@ -351,23 +351,17 @@ function buildBleachers() {
   // block to face the strip.
   function makeBleacher() {
     const b = new T.Group();
-    // Vertical frame columns
+    // Back columns only — strip side stays clean (cantilevered front).
     for (const cdx of [-7, -3.5, 0, 3.5, 7]) {
-      for (const cdz of [-2, 2]) {
-        const col = new T.Mesh(new T.BoxGeometry(0.25, 8, 0.25), frameMat);
-        col.position.set(cdx, 4, cdz); b.add(col);
-      }
+      const col = new T.Mesh(new T.BoxGeometry(0.25, 8, 0.25), frameMat);
+      col.position.set(cdx, 4, 2); b.add(col);
     }
-    // Diagonal X-braces on the end walls (cdx = ±7)
+    // Single diagonal (front-bottom → back-top) per end wall.
     for (const cdx of [-7, 7]) {
       const diag1 = new T.Mesh(new T.BoxGeometry(0.18, 9, 0.18), frameMat);
       diag1.position.set(cdx, 4, 0);
       diag1.rotation.x = Math.PI / 4;
       b.add(diag1);
-      const diag2 = new T.Mesh(new T.BoxGeometry(0.18, 9, 0.18), frameMat);
-      diag2.position.set(cdx, 4, 0);
-      diag2.rotation.x = -Math.PI / 4;
-      b.add(diag2);
     }
     // 5 stepped planks rising in +Z (toward the back of the bleacher)
     for (let row = 0; row < 5; row++) {

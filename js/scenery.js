@@ -106,21 +106,22 @@ export function buildBleachers(parent, T) {
 
   function makeBleacher() {
     const b = new T.Group();
+    // Back columns only — the front edge of the bleacher is unsupported
+    // (cantilevered over the planks) so the strip-facing side reads clean
+    // without a row of poles in front of the spectators.
     for (const cdx of [-7, -3.5, 0, 3.5, 7]) {
-      for (const cdz of [-2, 2]) {
-        const col = new T.Mesh(new T.BoxGeometry(0.25, 8, 0.25), frameMat);
-        col.position.set(cdx, 4, cdz);
-        col.castShadow = true;
-        b.add(col);
-      }
+      const col = new T.Mesh(new T.BoxGeometry(0.25, 8, 0.25), frameMat);
+      col.position.set(cdx, 4, 2);
+      col.castShadow = true;
+      b.add(col);
     }
+    // Single diagonal from front-bottom to back-top (no full X). With the
+    // front poles removed, the back-to-front-top brace had nothing to
+    // anchor against, so it's gone too.
     for (const cdx of [-7, 7]) {
       const d1 = new T.Mesh(new T.BoxGeometry(0.18, 9, 0.18), frameMat);
       d1.position.set(cdx, 4, 0); d1.rotation.x = Math.PI / 4;
       b.add(d1);
-      const d2 = new T.Mesh(new T.BoxGeometry(0.18, 9, 0.18), frameMat);
-      d2.position.set(cdx, 4, 0); d2.rotation.x = -Math.PI / 4;
-      b.add(d2);
     }
     for (let row = 0; row < 5; row++) {
       const plank = new T.Mesh(new T.BoxGeometry(15, 0.25, 1.0), plankMat);
