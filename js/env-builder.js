@@ -111,9 +111,11 @@ export function buildClassicEnv(scene, presetId) {
   // can rebuild it without touching strip / lights / tree.
   const sceneryGroup = new T.Group();
   scene.add(sceneryGroup);
-  pickScenery(sceneryGroup, id);
+  // pickScenery may return an optional tick(dt) for animated variants
+  // (e.g. industrial chimney smoke). null for fully static sceneries.
+  const sceneryTick = pickScenery(sceneryGroup, id);
 
-  return { strip, tree, ambers, greens, ambient, sun, dirtMat, scene, sceneryGroup };
+  return { strip, tree, ambers, greens, ambient, sun, dirtMat, scene, sceneryGroup, sceneryTick };
 }
 
 /**
@@ -149,7 +151,7 @@ export function applyEnvPreset(envObjects, presetId) {
       });
       g.remove(c);
     }
-    pickScenery(g, id);
+    envObjects.sceneryTick = pickScenery(g, id);
   }
 }
 

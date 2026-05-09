@@ -221,16 +221,18 @@ export function buildIndustrial(parent, T) {
     parent.add(sign);
   }
 
-  for (let i = 0; i < 4; i++) {
-    const x = -90 + i * 60;
+  // 4 smokestacks. Smoke is animated by a tick fn returned at the bottom
+  // of this builder — all state pre-allocated, no per-frame allocations.
+  const NUM_CHIMNEYS = 4;
+  const chimneyXs = [-90, -30, 30, 90];
+  const CHIMNEY_TOP_Y = 28;     // CylinderGeometry centered at y=14, h=28 → top
+  const CHIMNEY_Z = -340;
+  for (let i = 0; i < NUM_CHIMNEYS; i++) {
     const stack = new T.Mesh(new T.CylinderGeometry(2, 2.5, 28, 12),
       new T.MeshLambertMaterial({ color: 0x6a4a3a }));
-    stack.position.set(x, 14, -340);
+    stack.position.set(chimneyXs[i], 14, CHIMNEY_Z);
     stack.castShadow = true;
     parent.add(stack);
-    const smoke = new T.Mesh(new T.SphereGeometry(4, 8, 6),
-      new T.MeshBasicMaterial({ color: 0x666666, transparent: true, opacity: 0.4 }));
-    smoke.position.set(x + 2, 32, -340); parent.add(smoke);
   }
 
   for (let z = -10; z >= -340; z -= 5) {
@@ -251,6 +253,67 @@ export function buildIndustrial(parent, T) {
       new T.MeshLambertMaterial({ color: 0x4a4a52 }));
     pier.position.set(px, 9, -360); parent.add(pier);
   }
+
+  // --- Animated chimney smoke ------------------------------------------
+  // Pool of puffs per chimney that rise, expand, and fade. Pre-allocated;
+  // the returned tick(dt) mutates positions / scale / opacity in place.
+  const PUFFS_PER_CHIMNEY = 6;
+  const NUM_PUFFS = NUM_CHIMNEYS * PUFFS_PER_CHIMNEY;
+  const SMOKE_LIFE_S = 5.5;
+  const SMOKE_RISE_M = 14.0;     // total rise over lifetime
+  const SMOKE_DRIFT_X_M = 2.0;   // sideways drift over lifetime
+  const SMOKE_R_MIN = 0.7;
+  const SMOKE_R_MAX = 4.5;
+  const SMOKE_PEAK_ALPHA = 0.55;
+
+  const ages = new Float32Array(NUM_PUFFS);
+  const offX0 = new Float32Array(NUM_PUFFS);
+  const offZ0 = new Float32Array(NUM_PUFFS);
+  const driftDir = new Int8Array(NUM_PUFFS);
+  const sphereGeom = new T.SphereGeometry(1, 8, 6); // unit; scaled per puff
+  const puffMeshes = new Array(NUM_PUFFS);
+
+  for (let i = 0; i < NUM_PUFFS; i++) {
+    const ci = (i / PUFFS_PER_CHIMNEY) | 0;
+    const mat = new T.MeshBasicMaterial({
+      color: 0x707074,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+    const m = new T.Mesh(sphereGeom, mat);
+    m.position.set(chimneyXs[ci], CHIMNEY_TOP_Y, CHIMNEY_Z);
+    parent.add(m);
+    puffMeshes[i] = m;
+    // Stagger initial ages so the chimneys aren't synchronized.
+    ages[i] = (i / NUM_PUFFS) * SMOKE_LIFE_S;
+    offX0[i] = (Math.random() - 0.5) * 1.2;
+    offZ0[i] = (Math.random() - 0.5) * 1.2;
+    driftDir[i] = Math.random() < 0.5 ? -1 : 1;
+  }
+
+  return function tickIndustrial(dt) {
+    for (let i = 0; i < NUM_PUFFS; i++) {
+      ages[i] += dt;
+      if (ages[i] >= SMOKE_LIFE_S) {
+        ages[i] -= SMOKE_LIFE_S;
+        offX0[i] = (Math.random() - 0.5) * 1.2;
+        offZ0[i] = (Math.random() - 0.5) * 1.2;
+        driftDir[i] = Math.random() < 0.5 ? -1 : 1;
+      }
+      const t = ages[i] / SMOKE_LIFE_S;
+      const ci = (i / PUFFS_PER_CHIMNEY) | 0;
+      const m = puffMeshes[i];
+      m.position.x = chimneyXs[ci] + offX0[i] + driftDir[i] * t * SMOKE_DRIFT_X_M;
+      m.position.y = CHIMNEY_TOP_Y + t * SMOKE_RISE_M;
+      m.position.z = CHIMNEY_Z + offZ0[i];
+      const r = SMOKE_R_MIN + t * (SMOKE_R_MAX - SMOKE_R_MIN);
+      m.scale.set(r, r, r);
+      // Fade-in then fade-out: peak alpha at t=0.4, zero at t=0 and t=1.
+      const fade = t < 0.4 ? t / 0.4 : 1 - (t - 0.4) / 0.6;
+      m.material.opacity = SMOKE_PEAK_ALPHA * fade;
+    }
+  };
 }
 
 // ===========================================================================
@@ -911,9 +974,12 @@ const BUILDERS = {
 };
 
 /** Add the matching scenery to `parent` for the given env preset id.
- *  Falls back to amphitheater when an unknown id is passed. */
+ *  Falls back to amphitheater when an unknown id is passed. Builders may
+ *  optionally return a per-frame `tick(dt)` function for animated scenery
+ *  (e.g. industrial chimney smoke). Returns null when the variant is
+ *  fully static. */
 export function pickScenery(parent, presetId) {
   const T = window.THREE;
   const fn = BUILDERS[presetId] || BUILDERS.amphitheater;
-  fn(parent, T);
+  return fn(parent, T) || null;
 }

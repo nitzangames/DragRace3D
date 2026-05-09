@@ -736,7 +736,7 @@ function loop(now) {
       Math.round(gameData.velMs[0] * 2.237) + ' mph';
     updateEffects(gameData, dt);
     updateChaseCamera(camera, gameData);
-    renderFrame(renderer, scene, camera, cars, env, gameData);
+    renderFrame(renderer, scene, camera, cars, env, gameData, dt);
     // Results screen appears the moment the PLAYER is done (finished, blown,
     // or jump-started). Opponent may still be racing — their ET updates live
     // below.

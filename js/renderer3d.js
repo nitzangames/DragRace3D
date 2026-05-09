@@ -72,9 +72,11 @@ const WOBBLE_SPEED_REF = 30;     // m/s at which wobble reaches full amplitude
 
 /**
  * Pure-read frame draw. Reads gameData; never mutates it.
- * Mutates THREE objects' positions only.
+ * Mutates THREE objects' positions only. `dt` is the wall-clock seconds
+ * since the previous renderFrame call; used to drive scenery animation
+ * (e.g. chimney smoke) independently of the fixed physics step.
  */
-export function renderFrame(renderer, scene, camera, cars, env, gameData) {
+export function renderFrame(renderer, scene, camera, cars, env, gameData, dt) {
   const t = gameData.raceTimeS;
   for (let i = 0; i < NUM_CARS; i++) {
     let wobbleX = 0;
@@ -94,6 +96,7 @@ export function renderFrame(renderer, scene, camera, cars, env, gameData) {
     cars[i].rotation.z = -wobbleX * 0.2;
   }
   updateTreeFromGameData(env, gameData);
+  if (env.sceneryTick && dt > 0) env.sceneryTick(dt);
   // Slide the sun's shadow target along with the player so the orthographic
   // shadow frustum keeps the action in view as the car runs down the strip.
   if (env.sun && env.sun.target) {
