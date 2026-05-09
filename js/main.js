@@ -233,6 +233,11 @@ function startRace() {
   _rotwSubmitted = false;
   show('hud');
   started = true;
+  // First-career-race tutorial: pause the race loop and show a one-time
+  // overlay explaining stage + launch. Skipped for quick races and RotW.
+  if (careerState && !careerState.tutorialDone && !rotwActive && !quickRaceMode) {
+    showTutorialOverlay();
+  }
   const tachContainer = document.getElementById('tach-container');
   tachUpdater = buildTachSVG(tachContainer, raceBalance.cars[0].redlineRpm, GREEN_BAND_RPM);
   startEngine(raceBalance.cars[0]);
@@ -247,6 +252,38 @@ function startRace() {
 }
 
 document.getElementById('version-text').textContent = VERSION;
+
+// First-race tutorial. While this is true the per-frame loop short-circuits
+// before tickRace, so the staging timer / camera intro / engine sound all
+// stay frozen at the moment the overlay appeared. Cleared on dismiss.
+let tutorialActive = false;
+
+function showTutorialOverlay() {
+  if (document.getElementById('tutorial-overlay')) return; // idempotent
+  tutorialActive = true;
+  const hud = document.getElementById('hud');
+  const overlay = document.createElement('div');
+  overlay.id = 'tutorial-overlay';
+  overlay.className = 'tutorial-overlay';
+  overlay.innerHTML = `
+    <div class="tutorial-card">
+      <h3>HOW TO RACE</h3>
+      <div class="step">Hold <b>SHIFT</b> and <b>GAS</b> together to start the staging lights.</div>
+      <div class="step">When the light turns <b>GREEN</b>, release <b>SHIFT</b> to launch.</div>
+      <div class="step" style="opacity:0.7;font-size:0.85em">Keep tapping <b>SHIFT</b> at redline to upshift through the gears.</div>
+      <button id="btn-tutorial-ok" class="btn-primary btn-buy">GOT IT</button>
+    </div>
+  `;
+  hud.appendChild(overlay);
+  document.getElementById('btn-tutorial-ok').addEventListener('click', async () => {
+    overlay.remove();
+    tutorialActive = false;
+    if (careerState) {
+      careerState = { ...careerState, tutorialDone: true };
+      await saveCareer(careerState);
+    }
+  });
+}
 
 // Initial input wiring needs gameData reference; must be after gameData allocated.
 initInput(gameData);
@@ -707,6 +744,14 @@ function loop(now) {
     lastT = now;
     return;
   }
+  // Tutorial overlay freezes the race loop so the staging clock + audio
+  // don't tick while the player is reading. Reset lastT so the dt on
+  // resume is a single small frame, not a several-second jump.
+  if (tutorialActive) {
+    requestAnimationFrame(loop);
+    lastT = now;
+    return;
+  }
   let dt = (now - lastT) / 1000;
   lastT = now;
   if (dt > MAX_DT) dt = MAX_DT;
@@ -759,18 +804,38 @@ function updateButtonHints(gd) {
   let leftHint = '', rightHint = '';
   let leftFlash = false;
   const state = gd.raceState;
+  const gasHeld = gd.inputGas[PLAYER_CAR_IDX] === 1;
+  const shiftHeld = gd.inputShift[PLAYER_CAR_IDX] === 1;
   if (state === 'staging' || state === 'tree') {
-    leftHint = rightHint = 'HOLD';
-  } else if (state === 'launching' && gd.treeGreenAtS > 0) {
-    leftHint = 'LET GO';
     rightHint = 'HOLD';
-    leftFlash = true;  // green light: flash the LET GO prompt
+    // If the player is on the gas alone, urgently prompt them to also hold
+    // SHIFT (otherwise the staging timer never starts).
+    if (gasHeld && !shiftHeld) {
+      leftHint = 'HOLD!';
+      leftFlash = true;
+    } else {
+      leftHint = 'HOLD';
+    }
+  } else if (state === 'launching' && gd.treeGreenAtS > 0) {
+    rightHint = 'HOLD';
+    leftFlash = true;
+    // Escalate from "LET GO" to a louder "RELEASE!" if the player has been
+    // sitting on SHIFT for more than half a second after the green fired.
+    const sinceGreen = gd.raceTimeS - gd.treeGreenAtS;
+    leftHint = (shiftHeld && sinceGreen > 0.5) ? 'RELEASE!' : 'LET GO';
   } else if (state === 'racing') {
     rightHint = 'HOLD';
     const rpm = gd.rpm[PLAYER_CAR_IDX];
-    const playerRedline = raceBalance.cars[PLAYER_CAR_IDX].redlineRpm;
+    const playerCar = raceBalance.cars[PLAYER_CAR_IDX];
+    const playerRedline = playerCar.redlineRpm;
+    const lastGear = gd.gear[PLAYER_CAR_IDX] >= playerCar.gearRatios.length;
     const inGreen = rpm >= playerRedline - GREEN_BAND_RPM && rpm < playerRedline;
-    if (inGreen && gd.gear[PLAYER_CAR_IDX] < 4) {
+    const atLimiter = rpm >= playerRedline;
+    if (atLimiter && !lastGear && !shiftHeld) {
+      // Bouncing on the limiter without shifting — hard prompt.
+      leftHint = 'TAP!';
+      leftFlash = true;
+    } else if (inGreen && !lastGear) {
       leftHint = 'PRESS!';
       leftFlash = true;
     }

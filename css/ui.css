@@ -132,6 +132,43 @@ html, body {
 }
 .hud-overlay > * { pointer-events: auto; }
 
+/* First-race tutorial overlay. Shown over the HUD before the player has
+ * raced for the first time; pauses the race loop until dismissed. */
+.tutorial-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+  pointer-events: auto;
+}
+.tutorial-card {
+  background: #181820;
+  border: 2px solid #ffd14a;
+  border-radius: 14px;
+  padding: clamp(20px, 4cqi, 36px);
+  max-width: 88%;
+  text-align: center;
+  color: #fff;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+.tutorial-card h3 {
+  font-size: clamp(22px, 5cqi, 48px);
+  color: #ffd14a;
+  margin-bottom: clamp(12px, 2cqi, 20px);
+}
+.tutorial-card .step {
+  font-size: clamp(14px, 3cqi, 28px);
+  line-height: 1.4;
+  margin: clamp(10px, 1.5cqi, 16px) 0;
+}
+.tutorial-card .step b { color: #ffd14a; }
+.tutorial-card button {
+  margin-top: clamp(14px, 2.5cqi, 24px);
+  font-size: clamp(16px, 3cqi, 28px);
+  padding: clamp(10px, 1.5cqi, 16px) clamp(20px, 3cqi, 36px);
+}
+
 .hud-chip {
   position: absolute;
   color: #fff;

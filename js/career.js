@@ -22,6 +22,9 @@ export function newCareer() {
     audio: { muted: false, volume: 0.7 },
     haptics: { enabled: true },
     shadows: { enabled: true },
+    // First-race tutorial overlay shows on the very first career race; flips
+    // true the moment the player dismisses it.
+    tutorialDone: false,
   };
 }
 

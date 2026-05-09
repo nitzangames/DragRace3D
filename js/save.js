@@ -113,6 +113,10 @@ export async function loadCareer() {
   } else if (typeof parsed.shadows.enabled !== 'boolean') {
     parsed.shadows.enabled = true;
   }
+  // tutorialDone added in v0.5.58. Old saves predate the tutorial — those
+  // players already know how to drag race, so default to true on migration.
+  // newCareer() sets it false for fresh careers so the overlay fires once.
+  if (typeof parsed.tutorialDone !== 'boolean') parsed.tutorialDone = true;
   return parsed;
 }
 
