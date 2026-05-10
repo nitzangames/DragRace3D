@@ -13,6 +13,23 @@ let storage = null;
 function hasPlaySDK() {
   return typeof window !== 'undefined' && window.PlaySDK && typeof window.PlaySDK.save === 'function';
 }
+
+/** Wait for PlaySDK.onReady (cloud-save sync complete) before reading.
+ *  Without this, PlaySDK.load() can return null on a fresh device because
+ *  cloudCache hasn't been populated yet — the title screen would then show
+ *  NEW CAREER for a moment before the save arrives. Falls back after a
+ *  short timeout so an offline / wedged SDK can't block the menu forever. */
+function waitForPlaySDKReady(timeoutMs) {
+  if (!hasPlaySDK() || typeof window.PlaySDK.onReady !== 'function') {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => { if (!done) { done = true; resolve(); } };
+    window.PlaySDK.onReady(finish);
+    setTimeout(finish, timeoutMs || 2500);
+  });
+}
 function hasLocalStorage() {
   if (typeof window === 'undefined' || !window.localStorage) return false;
   // Some browsers (Safari private mode) expose localStorage but throw on
@@ -48,6 +65,10 @@ function getStorage() {
       // On localhost (no slug) it returns null and we fall through.
       if (sdk) {
         try {
+          // Block until cloud sync has populated PlaySDK's cloudCache (or
+          // we time out). Skipping this races the cloud fetch and can
+          // return null on a fresh device that actually has a saved game.
+          await waitForPlaySDKReady();
           const v = await window.PlaySDK.load(k);
           if (v != null) return v;
         } catch (_) { /* fall through to localStorage */ }
