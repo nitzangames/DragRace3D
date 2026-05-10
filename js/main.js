@@ -1,4 +1,4 @@
-import { VERSION, FIXED_DT, MAX_DT, GREEN_BAND_RPM, PLAYER_CAR_IDX } from './constants.js';
+import { VERSION, FIXED_DT, MAX_DT, GREEN_BAND_RPM, PLAYER_CAR_IDX, FINISH_LINE_M } from './constants.js';
 import { balance } from './balance.js';
 import { allocGameData, resetRace } from './gameData.js';
 import { tickRace } from './race-logic.js';
@@ -24,7 +24,7 @@ import { CLASS_BASE_REWARD, PERFECT_RT_BONUS_FRAC, LOSE_REWARD_FRAC, CLASS_NAMES
 import { computeRaceReward } from './economy.js';
 import { renderQuickRace, buildQuickRaceBalance, renderTrackPicker } from './quick-race.js';
 import { createGhostRecorder, decodeGhost } from './ghost-recorder.js';
-import { createGhostPlayer } from './ghost-renderer.js';
+import { createGhostPlayer, computeGhostFinishTime } from './ghost-renderer.js';
 import { renderRotwScreen, buildRotwBalance, fetchCurrentGhost, submitRotwResult } from './rotw-screen.js';
 import { fetchTop } from './leaderboard.js';
 import { renderShop, applyPurchase } from './shop-screen.js';
@@ -67,6 +67,10 @@ let _prevPlayerGear = 1;
 const ghostRecorder = createGhostRecorder();
 let ghostPlayer = null;
 let activeGhostFloats = null; // set by RotW screen before startRace
+let ghostFinishS = null;      // ghost's recorded ET (s since green); used in
+                              // RotW to drive slot-1's finishTimeS exactly to
+                              // the ghost's own time so the player races a
+                              // recorded run instead of the local AI
 
 // Debug handle (used by tests-visual probes; harmless in prod)
 if (typeof window !== 'undefined') window.__dr3d_gd = gameData;
@@ -248,9 +252,16 @@ function startRace() {
   if (activeGhostFloats && env.ghostMesh) {
     ghostPlayer = createGhostPlayer(env.ghostMesh, activeGhostFloats);
     env.ghostMesh.visible = true;
+    // RotW races the ghost — hide the AI opponent mesh; the translucent
+    // ghost mesh in the same lane is now the visible opponent. The AI's
+    // physics is also defanged each frame in the main loop (slot-1 posZ
+    // and finish state are driven from the ghost) so the race outcome
+    // is "did the player beat the recorded time".
+    if (cars[1]) cars[1].visible = false;
   } else {
     ghostPlayer = null;
     if (env.ghostMesh) env.ghostMesh.visible = false;
+    if (cars[1]) cars[1].visible = true;
   }
 }
 
@@ -376,13 +387,39 @@ async function initTitleButtons() {
     renderShop(careerState, async (packId) => {
       const pack = SHOP_PACKS.find(p => p.id === packId);
       if (!pack) return;
-      const ok = window.confirm(`Buy ${pack.gold.toLocaleString()}g for ${pack.cost.toLocaleString()} NBucks?`);
-      if (!ok) return;
-      careerState = applyPurchase(careerState, pack);
-      hapticPurchase();
-      await saveCareer(careerState);
-      refreshTopBar();
-      openShop(); // re-render with updated balance
+      // PlaySDK.nbucks.spend is the source of truth for the player's NBucks
+      // balance — the platform charges the wallet and renders its own
+      // confirmation modal. We just grant gold on resolve. The previous
+      // implementation deducted from a local careerState.nbucks field that
+      // never got seeded from the platform, so every shop tile was stuck
+      // disabled and applyPurchase would have thrown "insufficient" anyway.
+      const sdk = (typeof window !== 'undefined') ? window.PlaySDK : null;
+      if (!sdk || !sdk.nbucks || !sdk.nbucks.spend) {
+        window.alert('Currency packs require running on play.nitzan.games.');
+        return;
+      }
+      try {
+        const result = await sdk.nbucks.spend({
+          amount: pack.cost,
+          itemDescription: `${pack.gold.toLocaleString()} gold pack`,
+          itemId: pack.id,
+        });
+        // result.balance = the post-spend NBucks balance. Cache it locally
+        // so renderShop's display reads accurately even before the next spend.
+        careerState = { ...careerState, nbucks: result.balance };
+        careerState = addGold(careerState, pack.gold);
+        hapticPurchase();
+        await saveCareer(careerState);
+        refreshTopBar();
+        openShop(); // re-render with updated balance
+      } catch (e) {
+        const code = e && e.code;
+        if (code === 'cancelled') return;       // user dismissed the modal
+        const msg = code === 'insufficient_balance'
+          ? "Not enough NBucks for that pack."
+          : ("Purchase failed: " + (e && e.message || 'unknown error'));
+        window.alert(msg);
+      }
     });
   }
   const shopBtn = document.getElementById('btn-shop');
@@ -447,6 +484,7 @@ async function initTitleButtons() {
     if (!rotwChallenge) rotwChallenge = await renderRotwScreen();
     raceBalance = buildRotwBalance(rotwChallenge);
     activeGhostFloats = await fetchCurrentGhost(rotwChallenge.week);
+    ghostFinishS = computeGhostFinishTime(activeGhostFloats);
     rotwActive = true;
     quickRaceMode = false;
     startRace();
@@ -771,6 +809,27 @@ function loop(now) {
       ghostRecorder.tick(t, 1/60, playerWorldZ, gameData.rpm[0], gameData.gear[0]);
       if (ghostPlayer && ghostPlayer.active) ghostPlayer.update(t);
     }
+    // RotW with a recorded ghost: drive slot-1's posZ + finish state from
+    // the ghost, ignoring whatever the AI physics did this tick. tickRace
+    // may have advanced/finished the AI car using its own (irrelevant to
+    // RotW) physics — we overwrite that here so race-logic's pickWinner
+    // compares the player's time vs the ghost's recorded time. cars[1]'s
+    // mesh was hidden in startRace; the translucent env.ghostMesh is the
+    // visible opponent.
+    if (rotwActive && ghostPlayer && ghostPlayer.active && env.ghostMesh) {
+      const gz = env.ghostMesh.position.z;
+      gameData.posZ[1] = gz;
+      gameData.velMs[1] = 0;
+      gameData.blown[1] = 0;
+      gameData.jumped[1] = 0;
+      if (gz <= -FINISH_LINE_M && ghostFinishS != null) {
+        gameData.finished[1] = 1;
+        gameData.finishTimeS[1] = ghostFinishS;
+      } else {
+        gameData.finished[1] = 0;
+        gameData.finishTimeS[1] = 0;
+      }
+    }
     const throttle = gameData.inputGas[0] ? 1 : 0;
     updateEngine(gameData.rpm[0], throttle);
     if (tachUpdater) tachUpdater.update(gameData.rpm[0], gameData.gear[0], gameData.slip[0]);
@@ -929,6 +988,7 @@ function showResults() {
         if (!rotwChallenge) rotwChallenge = await renderRotwScreen();
         raceBalance = buildRotwBalance(rotwChallenge);
         activeGhostFloats = await fetchCurrentGhost(rotwChallenge.week);
+        ghostFinishS = computeGhostFinishTime(activeGhostFloats);
         rotwActive = true;
         _rotwSubmitted = false;
         quickRaceMode = false;
@@ -939,6 +999,7 @@ function showResults() {
         el.remove();
         rotwActive = false;
         activeGhostFloats = null;
+        ghostFinishS = null;
         show('screen-title');
       });
     } else {
@@ -1052,8 +1113,13 @@ function showResults() {
     // element) and doesn't pay career gold either.
     if (rotwActive) return;
     const won = gameData.winnerCarIdx === PLAYER_CAR_IDX;
+    const jumped = gameData.jumped[PLAYER_CAR_IDX] === 1;
     const perfectRT = gameData.rtS[PLAYER_CAR_IDX] > 0 && gameData.rtS[PLAYER_CAR_IDX] < 0.100;
-    const reward = computeRaceReward({
+    // Jump-starts (red light) pay nothing — the player didn't actually race.
+    // We still fall through to recordLoss below so the result counts toward
+    // careerState.losses / class progression stats, but with reward=0 the
+    // top bar's gold total stays put and the results screen reads "+0g".
+    const reward = jumped ? 0 : computeRaceReward({
       classIndex: careerState.classIndex,
       won,
       // Career quick race uses the lower 'quick' rate (50% of class base)

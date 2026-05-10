@@ -27,16 +27,19 @@ export function renderShop(state, onPurchase) {
   if (!grid) return;
   grid.innerHTML = '';
   for (const pack of SHOP_PACKS) {
+    // Don't gate the tile by the local nbucks cache: PlaySDK is the source
+    // of truth for the player's NBucks balance and will reject the spend
+    // (with code: 'insufficient_balance') if they actually can't afford.
+    // The visual hint stays for cached-balance mismatches.
     const afford = canAffordPack(state, pack);
     const tile = document.createElement('button');
     tile.className = 'pack-tile ' + (afford ? 'affordable' : 'unaffordable');
-    tile.disabled = !afford;
     tile.innerHTML = `
       <h3>${pack.id.toUpperCase()}</h3>
       <div class="gold-amt">${pack.gold.toLocaleString()}g</div>
       <div class="cost">ⓝ ${pack.cost.toLocaleString()}</div>
     `;
-    if (afford) tile.addEventListener('click', () => onPurchase(pack.id));
+    tile.addEventListener('click', () => onPurchase(pack.id));
     grid.appendChild(tile);
   }
 }

@@ -1,4 +1,28 @@
-import { GHOST_FLOATS_PER_SAMPLE, GHOST_SAMPLE_HZ } from './constants.js';
+import { GHOST_FLOATS_PER_SAMPLE, GHOST_SAMPLE_HZ, FINISH_LINE_M } from './constants.js';
+
+/**
+ * Compute when the recorded ghost crossed the finish line, in seconds since
+ * the green light. Returns null when the ghost never crossed (which can
+ * happen for a blown / DNF run). Used by RotW to set the opponent's
+ * finishTimeS exactly to the ghost's recorded time, so "did you beat it?"
+ * is decided by the ghost's actual run instead of the local AI's physics.
+ */
+export function computeGhostFinishTime(ghostFloats) {
+  if (!ghostFloats || ghostFloats.length < GHOST_FLOATS_PER_SAMPLE * 2) return null;
+  const fps = GHOST_FLOATS_PER_SAMPLE;
+  const sampleCount = ghostFloats.length / fps;
+  for (let i = 1; i < sampleCount; i++) {
+    const cur = ghostFloats[i * fps];
+    if (cur <= -FINISH_LINE_M) {
+      const prev = ghostFloats[(i - 1) * fps];
+      const denom = cur - prev;
+      // Linear-interpolate the exact crossing fraction within this sample.
+      const f = denom !== 0 ? (-FINISH_LINE_M - prev) / denom : 0;
+      return ((i - 1) + f) / GHOST_SAMPLE_HZ;
+    }
+  }
+  return null;
+}
 
 /**
  * Drive a translucent third-car mesh from a recorded ghost buffer.
