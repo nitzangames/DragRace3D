@@ -13,7 +13,7 @@ test.beforeEach(() => {
 });
 
 test('saveCareer/loadCareer roundtrips a state object', async () => {
-  const state = { version: 1, classIndex: 2, classWins: 3, gold: 1500, ownedCars: ['e2', 'd1'], currentCarId: 'e2', nbucks: 0, unlockedEnvs: ['bleachers'], audio: { muted: false, volume: 0.7 }, haptics: { enabled: true }, shadows: { enabled: true } };
+  const state = { version: 1, classIndex: 2, classWins: 3, gold: 1500, ownedCars: ['e2', 'd1'], currentCarId: 'e2', nbucks: 0, unlockedEnvs: ['bleachers'], audio: { muted: false, volume: 0.7 }, haptics: { enabled: true }, shadows: { enabled: true }, tutorialDone: true };
   await saveCareer(state);
   const loaded = await loadCareer();
   assert.deepEqual(loaded, state);
@@ -75,6 +75,7 @@ test('saveCareer/loadCareer roundtrips the new fields', async () => {
     audio: { muted: true, volume: 0.4 },
     haptics: { enabled: false },
     shadows: { enabled: false },
+    tutorialDone: true,
   };
   await saveCareer(state);
   const loaded = await loadCareer();

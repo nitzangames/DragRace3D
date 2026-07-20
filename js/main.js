@@ -399,17 +399,33 @@ async function initTitleButtons() {
         return;
       }
       try {
-        const result = await sdk.nbucks.spend({
+        await sdk.nbucks.spend({
           amount: pack.cost,
           itemDescription: `${pack.gold.toLocaleString()} gold pack`,
           itemId: pack.id,
+          fulfill: async (result) => {
+            const receiptId = typeof result?.receiptId === 'string' ? result.receiptId : null;
+            const receipts = Array.isArray(careerState.fulfilledNbucksReceipts)
+              ? careerState.fulfilledNbucksReceipts
+              : [];
+            if (receiptId && receipts.includes(receiptId)) return;
+
+            const previousState = careerState;
+            careerState = addGold(careerState, pack.gold);
+            careerState = {
+              ...careerState,
+              nbucks: typeof result?.balance === 'number' ? result.balance : careerState.nbucks,
+              fulfilledNbucksReceipts: receiptId ? [...receipts, receiptId] : receipts,
+            };
+            try {
+              await saveCareer(careerState);
+            } catch (error) {
+              careerState = previousState;
+              throw error;
+            }
+          },
         });
-        // result.balance = the post-spend NBucks balance. Cache it locally
-        // so renderShop's display reads accurately even before the next spend.
-        careerState = { ...careerState, nbucks: result.balance };
-        careerState = addGold(careerState, pack.gold);
         hapticPurchase();
-        await saveCareer(careerState);
         refreshTopBar();
         openShop(); // re-render with updated balance
       } catch (e) {

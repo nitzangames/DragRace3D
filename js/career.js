@@ -15,6 +15,7 @@ export function newCareer() {
     ownedCars: [],     // [{ carId, parts, tune, paint }]
     currentCarId: null,
     nbucks: 0,
+    fulfilledNbucksReceipts: [],
     // Bleachers is the only class-0 starter; higher-class tracks unlock
     // via recordWin / class advance. Amphitheater is the championship
     // venue and is intentionally the very last unlock (class Pro).

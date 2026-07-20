@@ -30,7 +30,7 @@ test('submitRun calls SDK with score + attachment; tolerates missing SDK', async
   let capturedScore = null;
   let capturedAttachment = null;
   _setMockSDK({
-    submitScore: (board, value, attachment) => {
+    submitScore: (board, value, direction, metadata, attachment) => {
       capturedScore = { board, value };
       capturedAttachment = attachment;
       return Promise.resolve({ ok: true });
