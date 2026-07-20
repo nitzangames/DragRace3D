@@ -1,4 +1,4 @@
-import { VERSION, FIXED_DT, MAX_DT, GREEN_BAND_RPM, PLAYER_CAR_IDX, FINISH_LINE_M } from './constants.js';
+import { VERSION, FIXED_DT, MAX_DT, GREEN_BAND_RPM, PLAYER_CAR_IDX, FINISH_LINE_M, SAVE_KEY } from './constants.js';
 import { balance } from './balance.js';
 import { allocGameData, resetRace } from './gameData.js';
 import { tickRace } from './race-logic.js';
@@ -405,6 +405,27 @@ async function initTitleButtons() {
           itemId: pack.id,
           fulfill: async (result) => {
             const receiptId = typeof result?.receiptId === 'string' ? result.receiptId : null;
+            if (receiptId && typeof sdk.updateSave === 'function') {
+              const saved = await sdk.updateSave(SAVE_KEY, (currentBlob) => {
+                let current = careerState;
+                try {
+                  const parsed = currentBlob ? JSON.parse(currentBlob) : null;
+                  if (parsed && typeof parsed === 'object') current = parsed;
+                } catch (_) {}
+                const currentReceipts = Array.isArray(current.fulfilledNbucksReceipts)
+                  ? current.fulfilledNbucksReceipts.filter(id => typeof id === 'string')
+                  : [];
+                if (currentReceipts.includes(receiptId)) return JSON.stringify(current);
+                const granted = addGold(current, pack.gold);
+                return JSON.stringify({
+                  ...granted,
+                  nbucks: typeof result?.balance === 'number' ? result.balance : granted.nbucks,
+                  fulfilledNbucksReceipts: [...currentReceipts, receiptId],
+                });
+              });
+              careerState = JSON.parse(saved);
+              return;
+            }
             const receipts = Array.isArray(careerState.fulfilledNbucksReceipts)
               ? careerState.fulfilledNbucksReceipts
               : [];
@@ -431,7 +452,7 @@ async function initTitleButtons() {
       } catch (e) {
         const code = e && e.code;
         if (code === 'cancelled') return;       // user dismissed the modal
-        const msg = code === 'insufficient_balance'
+        const msg = code === 'insufficient_funds'
           ? "Not enough NBucks for that pack."
           : ("Purchase failed: " + (e && e.message || 'unknown error'));
         window.alert(msg);
